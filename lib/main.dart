@@ -616,7 +616,7 @@ class _AcademyHomeState extends State<AcademyHome> {
             TextField(controller: description, maxLines: 3, decoration: const InputDecoration(labelText: 'وصف الدورة')),
             const SizedBox(height: 10),
             DropdownButtonFormField<String>(
-              value: level,
+              initialValue: level,
               decoration: const InputDecoration(labelText: 'المستوى'),
               items: const [
                 DropdownMenuItem(value: 'beginner', child: Text('مبتدئ')),
@@ -687,7 +687,7 @@ class _AcademyHomeState extends State<AcademyHome> {
             mainAxisSize: MainAxisSize.min,
             children: [
               DropdownButtonFormField<String>(
-                value: courseId,
+                initialValue: courseId,
                 decoration: const InputDecoration(labelText: 'الدورة'),
                 items: ownedCourses.map((c) => DropdownMenuItem<String>(value: c['id'] as String, child: Text(c['title'] as String, overflow: TextOverflow.ellipsis))).toList(),
                 onChanged: saving ? null : (v) => refresh(() => courseId = v),
@@ -701,7 +701,7 @@ class _AcademyHomeState extends State<AcademyHome> {
                 child: TextField(controller: options[i], decoration: InputDecoration(labelText: 'الخيار ${i + 1}')),
               )),
               DropdownButtonFormField<int>(
-                value: correct,
+                initialValue: correct,
                 decoration: const InputDecoration(labelText: 'الإجابة الصحيحة (للمدرّس فقط)'),
                 items: List.generate(4, (i) => DropdownMenuItem(value: i, child: Text('الخيار ${i + 1}'))),
                 onChanged: saving ? null : (v) => refresh(() => correct = v ?? 0),
@@ -870,7 +870,7 @@ class _AcademyHomeState extends State<AcademyHome> {
                     decoration: InputDecoration(labelText: 'الخيار ${entry.key + 1}')),
                 )),
                 DropdownButtonFormField<int>(
-                  value: correct < 0 || correct >= options.length ? 0 : correct,
+                  initialValue: correct < 0 || correct >= options.length ? 0 : correct,
                   decoration: const InputDecoration(labelText: 'الإجابة الصحيحة'),
                   items: List.generate(options.length, (i) =>
                     DropdownMenuItem(value: i, child: Text('الخيار ${i + 1}'))),
@@ -1048,11 +1048,20 @@ class _AcademyHomeState extends State<AcademyHome> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text('${entry.key + 1}. ${q['prompt']}', style: const TextStyle(fontWeight: FontWeight.bold)),
-                      ...List.generate(opts.length, (i) => RadioListTile<int>(
-                        dense: true, contentPadding: EdgeInsets.zero,
-                        title: Text(opts[i]), value: i, groupValue: answers[id],
-                        onChanged: (v) => refresh(() { if (v != null) answers[id] = v; }),
-                      )),
+                      RadioGroup<int>(
+                        groupValue: answers[id],
+                        onChanged: (value) => refresh(() {
+                          if (value != null) answers[id] = value;
+                        }),
+                        child: Column(
+                          children: List.generate(opts.length, (i) => RadioListTile<int>(
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(opts[i]),
+                            value: i,
+                          )),
+                        ),
+                      ),
                     ],
                   )),
                 );
@@ -1377,7 +1386,7 @@ class _AcademyHomeState extends State<AcademyHome> {
                     final safeName = selectedVideo!.name.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
                     uploadedVideoPath = course.id! + '/' + DateTime.now().microsecondsSinceEpoch.toString() + '_' + safeName;
                     await supabase.storage.from('course-videos').uploadBinary(
-                      uploadedVideoPath!, bytes,
+                      uploadedVideoPath, bytes,
                       fileOptions: FileOptions(
                         contentType: selectedVideo!.extension?.toLowerCase() == 'webm'
                           ? 'video/webm'
@@ -2373,13 +2382,6 @@ class _AcademyHomeState extends State<AcademyHome> {
       ),
     );
   }
-
-  Widget _lessonTile(String title, String subtitle, IconData icon) => ListTile(
-    contentPadding: EdgeInsets.zero, leading: Container(width: 42, height: 42,
-      decoration: BoxDecoration(color: const Color(0xFFF0EFFF), borderRadius: BorderRadius.circular(12)),
-      child: Icon(icon, color: purple)), title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-    subtitle: Text(subtitle, style: const TextStyle(fontSize: 12, color: Colors.blueGrey)),
-    trailing: const Icon(Icons.chevron_left, color: Colors.blueGrey));
 
   Widget _sectionTitle(String title) => Text(title, style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w800, color: ink));
 
