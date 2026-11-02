@@ -2,7 +2,7 @@
 -- Security-definer functions are callable only by authenticated sessions through RLS.
 create schema if not exists private;
 revoke all on schema private from public, anon;
-grant usage on schema private to authenticated;
+grant usage on schema private to authenticated, anon;
 
 create or replace function private.is_admin()
 returns boolean language sql stable security definer set search_path = ''
@@ -18,7 +18,7 @@ $$;
 
 revoke all on function private.is_admin() from public, anon;
 revoke all on function private.is_teacher_or_admin() from public, anon;
-grant execute on function private.is_admin() to authenticated;
+grant execute on function private.is_admin() to authenticated, anon;
 grant execute on function private.is_teacher_or_admin() to authenticated;
 
 alter policy "admins read all profiles" on public.profiles using (private.is_admin());
