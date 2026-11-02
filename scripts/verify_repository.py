@@ -24,6 +24,7 @@ COURSE_PROGRESS_HELPER = ROOT / "lib" / "utils" / "course_progress.dart"
 AUTH_VALIDATION_HELPER = ROOT / "lib" / "utils" / "auth_validation.dart"
 MAIN_DART = ROOT / "lib" / "main.dart"
 WORKFLOW = ROOT / ".github" / "workflows" / "deploy.yml"
+PUBSPEC = ROOT / "pubspec.yaml"
 DEPLOYMENT_SMOKE_TEST = ROOT / "scripts" / "smoke_test_deployment.py"
 
 def fail(message: str) -> None:
@@ -107,6 +108,12 @@ for test_file in DART_TESTS:
 for source_file in (ROLE_HELPER, PROGRESS_HELPER, COURSE_PROGRESS_HELPER, AUTH_VALIDATION_HELPER):
     if not source_file.exists():
         fail(f"Required application utility is missing: {source_file.relative_to(ROOT)}")
+if not PUBSPEC.exists():
+    fail("Flutter pubspec is missing")
+pubspec_text = PUBSPEC.read_text(encoding="utf-8")
+for dependency in ("supabase_flutter: 2.18.3", "file_picker: 8.3.7", "video_player: 2.14.1", "web: 1.1.2", "flutter_lints: 5.0.0"):
+    if dependency not in pubspec_text:
+        fail(f"Direct Flutter dependency is not pinned to the tested version: {dependency}")
 main_source = MAIN_DART.read_text(encoding="utf-8")
 for fragment in ("utils/roles.dart", "utils/progress.dart", "utils/course_progress.dart", "utils/auth_validation.dart", "isValidPasswordPair", "AuthChangeEvent.passwordRecovery", "emailRedirectTo: academyRedirectUrl", "redirectTo: academyRedirectUrl", "PasswordRecoveryScreen", "calculateCourseProgress", "certificatesFuture = _loadMyCertificates()", "isSupportedAcademyRole", "canManageAcademyCourses", "buildLessonProgressPayload"):
     if fragment not in main_source:
