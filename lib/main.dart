@@ -201,6 +201,73 @@ class _AuthScreenState extends State<AuthScreen> {
   );
 }
 
+
+class LessonPlayerScreen extends StatefulWidget {
+  final String title;
+  final String videoUrl;
+  const LessonPlayerScreen({super.key, required this.title, required this.videoUrl});
+
+  @override
+  State<LessonPlayerScreen> createState() => _LessonPlayerScreenState();
+}
+
+class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
+  late final VideoPlayerController _controller;
+  late final Future<void> _initialize;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = VideoPlayerController.networkUrl(Uri.parse(widget.videoUrl));
+    _initialize = _controller.initialize();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: Text(widget.title)),
+    body: Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 1000),
+        child: FutureBuilder<void>(
+          future: _initialize,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const CircularProgressIndicator();
+            }
+            if (snapshot.hasError) {
+              return const Text('تعذر تشغيل الفيديو. جرّب رفع ملف MP4 أو WebM.');
+            }
+            return Column(mainAxisSize: MainAxisSize.min, children: [
+              AspectRatio(
+                aspectRatio: _controller.value.aspectRatio,
+                child: VideoPlayer(_controller),
+              ),
+              VideoProgressIndicator(_controller, allowScrubbing: true),
+              IconButton(
+                iconSize: 42,
+                onPressed: () => setState(() {
+                  if (_controller.value.isPlaying) {
+                    _controller.pause();
+                  } else {
+                    _controller.play();
+                  }
+                }),
+                icon: Icon(_controller.value.isPlaying ? Icons.pause_circle : Icons.play_circle),
+              ),
+            ]);
+          },
+        ),
+      ),
+    ),
+  );
+}
+
 class AcademyHome extends StatefulWidget {
   final bool isTeacher;
   const AcademyHome({super.key, required this.isTeacher});
@@ -647,26 +714,150 @@ class _AcademyHomeState extends State<AcademyHome> {
     ),
   );
 
-  void _openCourse(Course course) => showModalBottomSheet(
-    context: context, isScrollControlled: true, backgroundColor: Colors.white,
-    shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-    builder: (_) => Directionality(textDirection: english ? TextDirection.ltr : TextDirection.rtl,
-      child: Padding(padding: const EdgeInsets.all(24), child: SafeArea(child: Column(
-        mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [Icon(course.icon, color: course.color, size: 30), const SizedBox(width: 12),
-            Expanded(child: Text(course.title, style: const TextStyle(fontSize: 21, fontWeight: FontWeight.bold)))]),
-          const SizedBox(height: 12),
-          Text(course.description),
-          const SizedBox(height: 18),
-          _lessonTile('مقدمة الدورة والأهداف', course.title, Icons.play_circle_fill),
-          _lessonTile('المفاهيم الأساسية', course.title, Icons.play_circle_fill),
-          _lessonTile('تطبيق عملي', course.title, Icons.assignment_outlined),
-          const SizedBox(height: 12),
-          SizedBox(width: double.infinity, child: FilledButton.icon(
-            onPressed: () { Navigator.pop(context); _message(t('مشغل الدروس سيعمل بعد إضافة الدروس والفيديوهات الفعلية.', 'The lesson player will work after real lessons and videos are added.')); },
-            icon: const Icon(Icons.play_arrow), label: Text(t('ابدأ التعلم', 'Start learning')))),
-        ])))),
-  );
+
+  void _openCourse(Course course) {
+    if (course.id == null) return;
+    Future<List<Map<String, dynamic>>> lessonsFuture = supabase
+      .from('lessons').select('id,title,description,video_path,is_preview,position')
+      .eq('course_id', course.id!).order('position');
+    Future<bool> enrollmentFuture = supabase.from('enrollments')
+      .select('id').eq('course_id', course.id!)
+      .eq('student_id', supabase.auth.currentUser!.id)
+      .maybeSingle().then((row) => row != null);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, refreshSheet) => Directionality(
+          textDirection: english ? TextDirection.ltr : TextDirection.rtl,
+          child: SafeArea(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * .88),
+              child: ListView(
+                padding: const EdgeInsets.all(24),
+                shrinkWrap: true,
+                children: [
+                  Row(children: [
+                    Icon(course.icon, color: course.color, size: 30),
+                    const SizedBox(width: 12),
+                    Expanded(child: Text(course.title, style: const TextStyle(fontSize: 21, fontWeight: FontWeight.bold))),
+                  ]),
+                  const SizedBox(height: 12),
+                  Text(course.description),
+                  const SizedBox(height: 18),
+                  if (widget.isTeacher) ...[
+                    Wrap(spacing: 8, runSpacing: 8, children: [
+                      FilledButton.icon(
+                        onPressed: () async {
+                          await _addLesson(course);
+                          refreshSheet(() {
+                            lessonsFuture = supabase.from('lessons')
+                              .select('id,title,description,video_path,is_preview,position')
+                              .eq('course_id', course.id!).order('position');
+                          });
+                        },
+                        icon: const Icon(Icons.add), label: const Text('إضافة درس'),
+                      ),
+                      if (course.status != 'published')
+                        OutlinedButton.icon(
+                          onPressed: () async {
+                            await _publishCourse(course);
+                            if (sheetContext.mounted) Navigator.pop(sheetContext);
+                          },
+                          icon: const Icon(Icons.publish), label: const Text('نشر الدورة'),
+                        ),
+                    ]),
+                    const SizedBox(height: 16),
+                  ] else if (course.status == 'published')
+                    FutureBuilder<bool>(
+                      future: enrollmentFuture,
+                      builder: (context, enrollment) {
+                        if (!enrollment.hasData) return const LinearProgressIndicator();
+                        if (enrollment.data == true) return const Chip(
+                          avatar: Icon(Icons.check_circle, color: Colors.green),
+                          label: Text('أنت مسجل في هذه الدورة'),
+                        );
+                        return FilledButton.icon(
+                          onPressed: () async {
+                            try {
+                              await supabase.from('enrollments').insert({
+                                'course_id': course.id,
+                                'student_id': supabase.auth.currentUser!.id,
+                              });
+                              refreshSheet(() {
+                                enrollmentFuture = Future.value(true);
+                                lessonsFuture = supabase.from('lessons')
+                                  .select('id,title,description,video_path,is_preview,position')
+                                  .eq('course_id', course.id!).order('position');
+                              });
+                            } on PostgrestException catch (e) {
+                              _message(e.message);
+                            }
+                          },
+                          icon: const Icon(Icons.school_outlined),
+                          label: const Text('التحق بالدورة'),
+                        );
+                      },
+                    ),
+                  const Divider(height: 28),
+                  const Text('محتوى الدورة', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 10),
+                  FutureBuilder<List<Map<String, dynamic>>>(
+                    future: lessonsFuture,
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(child: Padding(
+                          padding: EdgeInsets.all(20), child: CircularProgressIndicator()));
+                      }
+                      if (snapshot.hasError) return const Text('تعذر تحميل الدروس. تحقق من التسجيل وصلاحيات الدورة.');
+                      final lessons = snapshot.data ?? [];
+                      if (lessons.isEmpty) return const Text('لم تتم إضافة دروس لهذه الدورة بعد.');
+                      return Column(children: lessons.map((lesson) => Card(
+                        elevation: 0,
+                        color: const Color(0xFFF7F7FC),
+                        child: ListTile(
+                          leading: const CircleAvatar(child: Icon(Icons.play_arrow)),
+                          title: Text(lesson['title'] as String? ?? 'درس'),
+                          subtitle: Text((lesson['description'] as String? ?? '').isEmpty
+                            ? (lesson['video_path'] == null ? 'درس نصي' : 'يتضمن فيديو')
+                            : lesson['description'] as String),
+                          trailing: const Icon(Icons.chevron_left),
+                          onTap: () async {
+                            final path = lesson['video_path'] as String?;
+                            if (path == null || path.isEmpty) {
+                              _message('هذا الدرس لا يحتوي على فيديو بعد.');
+                              return;
+                            }
+                            try {
+                              final url = await supabase.storage.from('course-videos')
+                                .createSignedUrl(path, 3600);
+                              if (!context.mounted) return;
+                              Navigator.pop(sheetContext);
+                              Navigator.of(context).push(MaterialPageRoute(
+                                builder: (_) => LessonPlayerScreen(
+                                  title: lesson['title'] as String? ?? 'مشغل الدرس',
+                                  videoUrl: url,
+                                ),
+                              ));
+                            } catch (error) {
+                              _message('لا يمكن فتح الفيديو. تحقق من تسجيلك في الدورة.');
+                            }
+                          },
+                        ),
+                      )).toList());
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
   Widget _lessonTile(String title, String subtitle, IconData icon) => ListTile(
     contentPadding: EdgeInsets.zero, leading: Container(width: 42, height: 42,
