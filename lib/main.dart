@@ -312,12 +312,14 @@ class _AcademyHomeState extends State<AcademyHome> {
   List<Course> remoteCourses = [];
   bool coursesLoading = true;
   late Future<List<Course>> learningCoursesFuture;
+  late Future<Map<String, int>> dashboardStatsFuture;
 
   @override
   void initState() {
     super.initState();
     _loadCourses();
     learningCoursesFuture = _loadLearningCourses();
+    dashboardStatsFuture = _loadDashboardStats();
   }
 
   Future<List<Course>> _loadLearningCourses() async {
@@ -972,11 +974,34 @@ class _AcademyHomeState extends State<AcademyHome> {
 
   Widget _sectionTitle(String title) => Text(title, style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w800, color: ink));
 
-  Widget _statRow() => Wrap(spacing: 12, runSpacing: 12, children: [
-    _stat(Icons.menu_book, '4', t('دورات متاحة', 'Courses')),
-    _stat(Icons.check_circle_outline, '2', t('دروس مكتملة', 'Lessons done')),
-    _stat(Icons.local_fire_department_outlined, '3', t('أيام متتالية', 'Day streak')),
-  ]);
+  Future<Map<String, int>> _loadDashboardStats() async {
+    final user = supabase.auth.currentUser;
+    if (user == null) return {'courses': 0, 'completed': 0, 'enrolled': 0};
+    final enrollments = await supabase.from('enrollments')
+        .select('id,course_id').eq('student_id', user.id);
+    final progress = await supabase.from('lesson_progress')
+        .select('id').eq('student_id', user.id).eq('completed', true);
+    final publishedCount = remoteCourses.where((course) => course.status == 'published').length;
+    return {
+      'courses': publishedCount,
+      'completed': (progress as List).length,
+      'enrolled': (enrollments as List).length,
+    };
+  }
+
+  Widget _statRow() => FutureBuilder<Map<String, int>>(
+    future: dashboardStatsFuture,
+    builder: (context, snapshot) {
+      final stats = snapshot.data ?? const <String, int>{};
+      final loading = snapshot.connectionState == ConnectionState.waiting;
+      final value = (String key) => loading ? '…' : '${stats[key] ?? 0}';
+      return Wrap(spacing: 12, runSpacing: 12, children: [
+        _stat(Icons.menu_book, value('courses'), t('دورات منشورة', 'Published courses')),
+        _stat(Icons.check_circle_outline, value('completed'), t('دروس مكتملة', 'Completed lessons')),
+        _stat(Icons.school_outlined, value('enrolled'), t('دورات التحقت بها', 'Enrolled courses')),
+      ]);
+    },
+  );
 
   Widget _stat(IconData icon, String value, String label) => Container(
     width: 170, padding: const EdgeInsets.all(16),
