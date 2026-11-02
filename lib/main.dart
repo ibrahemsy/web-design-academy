@@ -2141,6 +2141,7 @@ class _AcademyHomeState extends State<AcademyHome> {
               const Text('أدخل رمز الشهادة للتحقق من أنها صادرة عن الأكاديمية.'),
               const SizedBox(height: 12),
               TextField(controller: code, textCapitalization: TextCapitalization.characters,
+                onChanged: (_) => refresh(() {}),
                 decoration: const InputDecoration(labelText: 'رمز الشهادة', hintText: 'WDA-XXXXXXXXXXXX')),
               if (loading) const Padding(padding: EdgeInsets.all(12),
                 child: CircularProgressIndicator()),
