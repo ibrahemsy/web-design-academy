@@ -2040,6 +2040,7 @@ class _AcademyHomeState extends State<AcademyHome> {
     setState(() {
       coursesLoading = true;
       learningCoursesFuture = _loadLearningCourses();
+      certificatesFuture = _loadMyCertificates();
       dashboardStatsFuture = _loadDashboardStats();
       if (widget.role == 'admin') usersFuture = _loadUsers();
       courseSummaryFutures.clear();
@@ -3270,6 +3271,7 @@ class _AcademyHomeState extends State<AcademyHome> {
                               if (mounted && canTrackProgress) {
                                 setState(() {
                                   learningCoursesFuture = _loadLearningCourses();
+                                  certificatesFuture = _loadMyCertificates();
                                   dashboardStatsFuture = _loadDashboardStats();
                                 });
                               }
