@@ -189,7 +189,7 @@ class _AuthGateState extends State<AuthGate> {
             }
             return AcademyHome(
               isTeacher: canManageAcademyCourses(role),
-              role: role,
+              role: role!,
             );
           },
         );
