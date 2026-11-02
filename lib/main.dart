@@ -2003,7 +2003,9 @@ class _AcademyHomeState extends State<AcademyHome> {
 
   @override
   Widget build(BuildContext context) {
-    final wide = MediaQuery.sizeOf(context).width > 850;
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final wide = screenWidth > 850;
+    final compact = screenWidth < 520;
     return Directionality(
       textDirection: english ? TextDirection.ltr : TextDirection.rtl,
       child: Scaffold(
@@ -2011,8 +2013,10 @@ class _AcademyHomeState extends State<AcademyHome> {
           title: Row(mainAxisSize: MainAxisSize.min, children: [
             Container(width: 38, height: 38, decoration: BoxDecoration(color: purple, borderRadius: BorderRadius.circular(12)),
               child: const Icon(Icons.school_rounded, color: Colors.white)),
-            const SizedBox(width: 10),
-            Text(t('أكاديمية الويب', 'Web Academy'), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+            if (!compact) ...[
+              const SizedBox(width: 10),
+              Text(t('أكاديمية الويب', 'Web Academy'), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+            ],
           ]),
           actions: [
             IconButton(
@@ -2021,24 +2025,48 @@ class _AcademyHomeState extends State<AcademyHome> {
               icon: const Icon(Icons.refresh),
             ),
             if (widget.isTeacher)
-              TextButton.icon(
-                onPressed: () => setState(() {
-                  studentMode = !studentMode;
-                  selected = 0;
-                  if (studentMode) {
-                    learningCoursesFuture = _loadLearningCourses();
-                    dashboardStatsFuture = _loadDashboardStats();
-                  }
-                }),
-                icon: Icon(studentMode ? Icons.cast_for_education : Icons.school_outlined, size: 18),
-                label: Text(studentMode
-                    ? t('وضع المدرّس', 'Teacher mode')
-                    : t('وضع الطالب', 'Student mode')),
-              ),
-            TextButton.icon(onPressed: () => setState(() => english = !english),
-              icon: const Icon(Icons.translate, size: 18), label: Text(english ? 'العربية' : 'EN')),
-            const SizedBox(width: 8),
-            Padding(padding: const EdgeInsetsDirectional.only(end: 14),
+              compact
+                  ? IconButton(
+                      tooltip: studentMode
+                          ? t('العودة إلى وضع المدرّس', 'Return to teacher mode')
+                          : t('التبديل إلى وضع التعلّم', 'Switch to learning mode'),
+                      onPressed: () => setState(() {
+                        studentMode = !studentMode;
+                        selected = 0;
+                        if (studentMode) {
+                          learningCoursesFuture = _loadLearningCourses();
+                          dashboardStatsFuture = _loadDashboardStats();
+                        }
+                      }),
+                      icon: Icon(studentMode ? Icons.cast_for_education : Icons.school_outlined),
+                    )
+                  : TextButton.icon(
+                      onPressed: () => setState(() {
+                        studentMode = !studentMode;
+                        selected = 0;
+                        if (studentMode) {
+                          learningCoursesFuture = _loadLearningCourses();
+                          dashboardStatsFuture = _loadDashboardStats();
+                        }
+                      }),
+                      icon: Icon(studentMode ? Icons.cast_for_education : Icons.school_outlined, size: 18),
+                      label: Text(studentMode
+                          ? t('وضع المدرّس', 'Teacher mode')
+                          : t('وضع الطالب', 'Student mode')),
+                    ),
+            compact
+                ? IconButton(
+                    tooltip: english ? 'Switch to Arabic' : 'التبديل إلى الإنجليزية',
+                    onPressed: () => setState(() => english = !english),
+                    icon: const Icon(Icons.translate, size: 18),
+                  )
+                : TextButton.icon(
+                    onPressed: () => setState(() => english = !english),
+                    icon: const Icon(Icons.translate, size: 18),
+                    label: Text(english ? 'العربية' : 'EN'),
+                  ),
+            const SizedBox(width: 4),
+            Padding(padding: EdgeInsetsDirectional.only(end: compact ? 6 : 14),
               child: CircleAvatar(backgroundColor: const Color(0xFFE8E7FF),
                 child: Icon(_teacherMode ? Icons.cast_for_education : Icons.person, color: purple))),
           ],
