@@ -1,4 +1,4 @@
--- Increase public certificate-code entropy from 48 bits to 128 random bits.
+-- Increase public certificate-code entropy from 48 bits to 122 random bits (UUIDv4).
 -- Existing certificate codes remain valid; only certificates issued after this
 -- migration use the longer random suffix.
 create or replace function private.issue_course_certificate(p_course_id uuid)
@@ -63,7 +63,7 @@ begin
     student_name_snapshot, course_title_snapshot
   ) values (
     v_user_id, p_course_id,
-    'WDA-' || upper(encode(gen_random_bytes(16), 'hex')),
+    'WDA-' || upper(substr(replace(pg_catalog.gen_random_uuid()::text, '-', ''), 1, 32)),
     v_completed_lessons, v_total_lessons, v_required_quizzes, v_passed_quizzes,
     v_student_name, v_course.title
   ) on conflict (student_id, course_id) do nothing;
