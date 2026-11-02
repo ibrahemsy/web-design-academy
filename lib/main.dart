@@ -247,6 +247,81 @@ class _AuthScreenState extends State<AuthScreen> {
     }
   }
 
+  Future<void> _verifyPublicCertificate() async {
+    final code = TextEditingController();
+    Map<String, dynamic>? result;
+    bool loading = false;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, refresh) => AlertDialog(
+          title: const Text('التحقق العام من شهادة'),
+          content: SizedBox(
+            width: 420,
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              const Text('يمكن لأي شخص التحقق من صحة الشهادة دون إنشاء حساب.'),
+              const SizedBox(height: 12),
+              TextField(
+                controller: code,
+                textCapitalization: TextCapitalization.characters,
+                onChanged: (_) => refresh(() {}),
+                decoration: const InputDecoration(
+                  labelText: 'رمز الشهادة',
+                  hintText: 'WDA-XXXXXXXXXXXX',
+                  prefixIcon: Icon(Icons.verified_outlined),
+                ),
+              ),
+              if (loading) const Padding(
+                padding: EdgeInsets.all(12),
+                child: CircularProgressIndicator(),
+              ),
+              if (result != null) ...[
+                const SizedBox(height: 12),
+                if (result!['valid'] == true) ...[
+                  const Icon(Icons.verified, color: Colors.green, size: 36),
+                  const Text('الشهادة صحيحة وصادرة عن الأكاديمية',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  Text('اسم المتعلم: ${result!['student_name'] ?? '—'}'),
+                  Text('الدورة: ${result!['course_title'] ?? '—'}'),
+                  Text('تاريخ الإصدار: ${result!['issued_at'] ?? '—'}'),
+                ] else
+                  const Text('رمز الشهادة غير صحيح أو غير موجود.',
+                    style: TextStyle(color: Colors.deepOrange)),
+              ],
+            ]),
+          ),
+          actions: [
+            TextButton(
+              onPressed: loading ? null : () => Navigator.pop(dialogContext),
+              child: const Text('إغلاق'),
+            ),
+            FilledButton(
+              onPressed: loading || code.text.trim().isEmpty ? null : () async {
+                refresh(() { loading = true; result = null; });
+                try {
+                  final raw = await supabase.rpc('verify_course_certificate', params: {
+                    'p_certificate_code': code.text.trim(),
+                  });
+                  if (dialogContext.mounted) refresh(() {
+                    result = Map<String, dynamic>.from(raw as Map);
+                    loading = false;
+                  });
+                } catch (error) {
+                  if (dialogContext.mounted) refresh(() => loading = false);
+                  _show('تعذر التحقق من الشهادة. حاول مرة أخرى.');
+                }
+              },
+              child: const Text('تحقق'),
+            ),
+          ],
+        ),
+      ),
+    );
+    code.dispose();
+  }
+
   Future<void> _resetPassword() async {
     final email = _email.text.trim();
     if (email.isEmpty || !email.contains('@')) {
@@ -321,6 +396,12 @@ class _AuthScreenState extends State<AuthScreen> {
                   TextButton(
                     onPressed: _busy ? null : () => setState(() => _register = !_register),
                     child: Text(_register ? 'لديك حساب؟ سجّل الدخول' : 'ليس لديك حساب؟ أنشئ حساباً جديداً')),
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed: _busy ? null : _verifyPublicCertificate,
+                    icon: const Icon(Icons.verified_outlined),
+                    label: const Text('التحقق من شهادة دون تسجيل الدخول'),
+                  ),
                 ]),
               ),
             ),
@@ -2114,7 +2195,7 @@ class _AcademyHomeState extends State<AcademyHome> {
       _message('اسمح بالنوافذ المنبثقة لتنزيل الشهادة بصيغة PDF.');
       return;
     }
-    printWindow.document.write('''.toJS
+    printWindow.document.write('''
 <!doctype html>
 <html lang="ar" dir="rtl">
 <head>
@@ -2165,7 +2246,7 @@ class _AcademyHomeState extends State<AcademyHome> {
 <script>window.onload = function () { window.focus(); window.print(); };</script>
 </body>
 </html>
-''');
+'''.toJS);
     printWindow.document.close();
     printWindow.focus();
     printWindow.print();
