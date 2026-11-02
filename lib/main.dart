@@ -447,7 +447,7 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
     // Capture the final position before awaiting another write. In dispose(),
     // the video controller is released immediately after this method is called.
     final watchedSeconds = _controller.value.position.inSeconds;
-    final updatedAt = DateTime.now().toIso8601String();
+    final updatedAt = DateTime.now();
     final isCompleted = completed || _completed;
 
     // Avoid overlapping writes. A completion/final-dispose write waits for an
@@ -468,7 +468,7 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
           studentId: user.id,
           completed: isCompleted,
           watchedSeconds: watchedSeconds,
-          updatedAt: DateTime.parse(updatedAt),
+          updatedAt: updatedAt,
         ),
         onConflict: 'lesson_id,student_id',
       );
