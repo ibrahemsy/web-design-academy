@@ -2239,7 +2239,7 @@ class _AcademyHomeState extends State<AcademyHome> {
                     child: Icon(Icons.workspace_premium, color: purple)),
                   title: Text(certificate['course_title']?.toString() ?? 'دورة تعليمية',
                     style: const TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: Text('الرمز: $code\\nالإصدار: ${date?.toLocal().toString().substring(0, 10) ?? '—'}'),
+                  subtitle: Text('الرمز: $code\nالإصدار: ${date?.toLocal().toString().substring(0, 10) ?? '—'}'),
                   isThreeLine: true,
                   trailing: IconButton(
                     tooltip: 'نسخ رمز الشهادة',
