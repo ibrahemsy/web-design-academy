@@ -10,8 +10,9 @@
 ## 2) إنشاء قاعدة البيانات
 1. افتح مشروع Supabase ثم SQL Editor.
 2. افتح الملف `supabase/migrations/0001_initial_schema.sql` من هذا المستودع.
-3. انسخ محتواه كاملاً إلى SQL Editor ثم نفّذه.
-4. من Authentication فعّل طريقة Email، واضبط رابط إعادة التوجيه إلى رابط موقعك عند تفعيله.
+3. نفّذ محتوى الملف كاملاً في SQL Editor.
+4. نفّذ أيضاً `supabase/migrations/0002_security_hardening.sql` لتأمين دوال التحقق من الأدوار.
+5. من Authentication → URL Configuration اضبط رابط الموقع، وتأكد من تفعيل Email provider.
 
 ينشئ المخطط جداول المستخدمين والدورات والدروس والتسجيل والتقدم والاختبارات، ويفعّل Row Level Security.
 
