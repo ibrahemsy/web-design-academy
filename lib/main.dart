@@ -1983,6 +1983,20 @@ class _AcademyHomeState extends State<AcademyHome> {
 
   String t(String ar, String en) => english ? en : ar;
 
+  Future<void> _refreshAll() async {
+    setState(() {
+      coursesLoading = true;
+      learningCoursesFuture = _loadLearningCourses();
+      dashboardStatsFuture = _loadDashboardStats();
+      if (widget.role == 'admin') usersFuture = _loadUsers();
+      courseSummaryFutures.clear();
+    });
+    await _loadCourses();
+    if (mounted) {
+      _message(t('تم تحديث بيانات الأكاديمية والتقارير.', 'Academy data and reports refreshed.'));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final wide = MediaQuery.sizeOf(context).width > 850;
@@ -1997,6 +2011,11 @@ class _AcademyHomeState extends State<AcademyHome> {
             Text(t('أكاديمية الويب', 'Web Academy'), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
           ]),
           actions: [
+            IconButton(
+              tooltip: t('تحديث جميع البيانات', 'Refresh all data'),
+              onPressed: _refreshAll,
+              icon: const Icon(Icons.refresh),
+            ),
             TextButton.icon(onPressed: () => setState(() => english = !english),
               icon: const Icon(Icons.translate, size: 18), label: Text(english ? 'العربية' : 'EN')),
             const SizedBox(width: 8),
