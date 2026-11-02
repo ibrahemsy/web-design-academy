@@ -44,6 +44,12 @@ if not private_access_migration.exists():
 private_access_sql = private_access_migration.read_text(encoding="utf-8")
 if "revoke all on function private.get_course_certificate_report(uuid)" not in private_access_sql.lower():
     fail("Migration 0026 must revoke direct access to the private certificate report RPC")
+verifier_migration = MIGRATIONS / "0027_restrict_direct_private_certificate_verification.sql"
+if not verifier_migration.exists():
+    fail("Private certificate verification migration 0027 is missing")
+verifier_sql = verifier_migration.read_text(encoding="utf-8")
+if "revoke all on function private.verify_course_certificate(text)" not in private_access_sql.lower():
+    fail("Migration 0027 must revoke direct access to the private certificate verifier")
 required_fragments = (
     "security definer",
     "set search_path = ''",
@@ -66,6 +72,8 @@ for fragment in (
     "public.verify_course_certificate(text)",
     "public.get_course_certificate_report(uuid)",
     "private.get_course_certificate_report(uuid)",
+    "private.verify_course_certificate(text)",
+    "SECURITY DEFINER",
     "pg_catalog.gen_random_uuid()",
     "storage.buckets",
     "course-videos",
