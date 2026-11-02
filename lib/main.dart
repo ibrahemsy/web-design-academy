@@ -1391,7 +1391,7 @@ class _AcademyHomeState extends State<AcademyHome> {
                           ),
                           title: Text(row['student_name']?.toString() ?? 'طالب'),
                           subtitle: hasCertificate
-                              ? Text('الرمز: ${row['certificate_code']}\\nالإصدار: ${issuedAt?.toLocal().toString().substring(0, 10) ?? '—'}')
+                              ? Text('الرمز: ${row['certificate_code']}\nالإصدار: ${issuedAt?.toLocal().toString().substring(0, 10) ?? '—'}')
                               : const Text('لم تصدر الشهادة بعد'),
                           isThreeLine: hasCertificate,
                           trailing: Text(
@@ -1421,7 +1421,7 @@ class _AcademyHomeState extends State<AcademyHome> {
                     csvCell(row['certificate_code']),
                     csvCell(row['issued_at']),
                   ].join(',')),
-                ].join('\\n');
+                ].join('\n');
                 Clipboard.setData(ClipboardData(text: csv));
                 Navigator.pop(dialogContext);
                 _message('تم نسخ تقرير الشهادات بصيغة CSV.');
