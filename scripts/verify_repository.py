@@ -16,10 +16,12 @@ DART_TESTS = (
     ROOT / "test" / "utils" / "roles_test.dart",
     ROOT / "test" / "utils" / "progress_test.dart",
     ROOT / "test" / "utils" / "course_progress_test.dart",
+    ROOT / "test" / "utils" / "auth_validation_test.dart",
 )
 ROLE_HELPER = ROOT / "lib" / "utils" / "roles.dart"
 PROGRESS_HELPER = ROOT / "lib" / "utils" / "progress.dart"
 COURSE_PROGRESS_HELPER = ROOT / "lib" / "utils" / "course_progress.dart"
+AUTH_VALIDATION_HELPER = ROOT / "lib" / "utils" / "auth_validation.dart"
 MAIN_DART = ROOT / "lib" / "main.dart"
 WORKFLOW = ROOT / ".github" / "workflows" / "deploy.yml"
 DEPLOYMENT_SMOKE_TEST = ROOT / "scripts" / "smoke_test_deployment.py"
@@ -89,11 +91,11 @@ except SyntaxError as error:
 for test_file in DART_TESTS:
     if not test_file.exists():
         fail(f"Required utility unit test is missing: {test_file.relative_to(ROOT)}")
-for source_file in (ROLE_HELPER, PROGRESS_HELPER, COURSE_PROGRESS_HELPER):
+for source_file in (ROLE_HELPER, PROGRESS_HELPER, COURSE_PROGRESS_HELPER, AUTH_VALIDATION_HELPER):
     if not source_file.exists():
         fail(f"Required application utility is missing: {source_file.relative_to(ROOT)}")
 main_source = MAIN_DART.read_text(encoding="utf-8")
-for fragment in ("utils/roles.dart", "utils/progress.dart", "utils/course_progress.dart", "calculateCourseProgress", "certificatesFuture = _loadMyCertificates()", "isSupportedAcademyRole", "canManageAcademyCourses", "buildLessonProgressPayload"):
+for fragment in ("utils/roles.dart", "utils/progress.dart", "utils/course_progress.dart", "utils/auth_validation.dart", "isValidPasswordPair", "AuthChangeEvent.passwordRecovery", "emailRedirectTo: academyRedirectUrl", "redirectTo: academyRedirectUrl", "PasswordRecoveryScreen", "calculateCourseProgress", "certificatesFuture = _loadMyCertificates()", "isSupportedAcademyRole", "canManageAcademyCourses", "buildLessonProgressPayload"):
     if fragment not in main_source:
         fail(f"Application is not using the tested helper: {fragment}")
 if not WORKFLOW.exists():
@@ -130,7 +132,7 @@ for fragment in (
 
 print(f"PASS: {len(files)} migrations are sequential (0001-{max(versions):04d}).")
 print("PASS: certificate issuance uses the expected UUIDv4 generator and hardened search_path.")
-print("PASS: formatter, role authorization, lesson-progress serialization, and course completion unit tests are present and included in CI.")
+print("PASS: formatter, role authorization, lesson progress, course completion, and password recovery validation tests are present and included in CI.")
 print("PASS: GitHub Pages deployment includes a post-deployment HTTP smoke test for Flutter runtime assets.")
 print("PASS: Supabase security smoke test covers profile/role/progress policies, private video storage, certificate RLS, RPC grants, and code generation.")
 print("NOTE: These checks are static. Run security_smoke_test.sql on the target Supabase database before launch.")
