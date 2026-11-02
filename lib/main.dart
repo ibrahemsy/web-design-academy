@@ -767,7 +767,7 @@ class _AcademyHomeState extends State<AcademyHome> {
               TextField(controller: prompt, maxLines: 2, decoration: const InputDecoration(labelText: 'نص السؤال')),
               ...List.generate(4, (i) => TextField(controller: options[i], decoration: InputDecoration(labelText: 'الخيار ${i + 1}'))),
               DropdownButtonFormField<int>(
-                value: correct,
+                initialValue: correct,
                 decoration: const InputDecoration(labelText: 'الإجابة الصحيحة'),
                 items: List.generate(4, (i) => DropdownMenuItem(value: i, child: Text('الخيار ${i + 1}'))),
                 onChanged: (v) => refresh(() => correct = v ?? 0),
@@ -1466,7 +1466,7 @@ class _AcademyHomeState extends State<AcademyHome> {
                   decoration: const InputDecoration(labelText: 'وصف الدورة'),
                 ),
                 DropdownButtonFormField<String>(
-                  value: level,
+                  initialValue: level,
                   decoration: const InputDecoration(labelText: 'المستوى'),
                   items: const [
                     DropdownMenuItem(value: 'beginner', child: Text('مبتدئ')),
