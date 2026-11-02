@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:html' as html;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -2087,6 +2088,85 @@ class _AcademyHomeState extends State<AcademyHome> {
     return (raw as List).map((row) => Map<String, dynamic>.from(row as Map)).toList();
   }
 
+  String _certificateHtmlEscape(Object? value) {
+    return (value?.toString() ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+  }
+
+  void _printCertificate(Map<String, dynamic> certificate) {
+    final student = _certificateHtmlEscape(certificate['student_name']);
+    final course = _certificateHtmlEscape(certificate['course_title']);
+    final code = _certificateHtmlEscape(certificate['certificate_code']);
+    final issuedAt = DateTime.tryParse(certificate['issued_at']?.toString() ?? '');
+    final issued = _certificateHtmlEscape(
+      issuedAt == null
+          ? '—'
+          : '${issuedAt.toLocal().year}-${issuedAt.toLocal().month.toString().padLeft(2, '0')}-${issuedAt.toLocal().day.toString().padLeft(2, '0')}',
+    );
+    final printWindow = html.window.open('', '_blank');
+    if (printWindow == null) {
+      _message('اسمح بالنوافذ المنبثقة لتنزيل الشهادة بصيغة PDF.');
+      return;
+    }
+    printWindow.document?.write('''
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>شهادة إتمام - $course</title>
+<style>
+  @page { size: A4 landscape; margin: 10mm; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #eef0f7; color: #17243b;
+    font-family: Tahoma, Arial, sans-serif; }
+  .sheet { width: 277mm; min-height: 190mm; margin: 12mm auto;
+    padding: 13mm; background: #fff; border: 3px solid #6c63ff;
+    outline: 1px solid #c8c4ff; outline-offset: -8px; position: relative;
+    display: flex; flex-direction: column; align-items: center; text-align: center; }
+  .brand { color: #6c63ff; font-size: 17px; font-weight: 800; letter-spacing: 2px; }
+  .seal { width: 72px; height: 72px; margin: 12px auto 5px; border: 2px solid #d7b76b;
+    border-radius: 50%; display: grid; place-items: center; color: #b18b36; font-size: 36px; }
+  h1 { margin: 8px 0 12px; font-size: 36px; color: #17243b; }
+  .intro { font-size: 17px; color: #64708a; margin: 5px 0; }
+  .student { font-size: 32px; color: #6c63ff; font-weight: 800; margin: 12px 0; }
+  .course { font-size: 23px; font-weight: 700; margin: 5px 0 12px; }
+  .meta { display: flex; gap: 30px; margin-top: auto; width: 100%; justify-content: space-between;
+    border-top: 1px solid #e5e7ef; padding-top: 14px; font-size: 13px; color: #5d6880; }
+  .code { direction: ltr; font-family: monospace; letter-spacing: 2px; color: #17243b; font-weight: 800; }
+  .footer { margin-top: 14px; font-size: 11px; color: #788198; }
+  @media print { body { background: white; } .sheet { margin: 0; width: 100%; min-height: 185mm;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+</style>
+</head>
+<body>
+<main class="sheet">
+  <div class="brand">WEB DESIGN ACADEMY</div>
+  <div class="seal">✦</div>
+  <h1>شهادة إتمام دورة</h1>
+  <p class="intro">تشهد أكاديمية تصميم الويب بأن المتعلم / المتعلمة</p>
+  <div class="student">$student</div>
+  <p class="intro">قد أتم بنجاح المتطلبات التعليمية للدورة</p>
+  <div class="course">$course</div>
+  <p class="intro">وذلك بعد إكمال الدروس واجتياز الاختبارات المطلوبة.</p>
+  <section class="meta">
+    <div><strong>تاريخ الإصدار</strong><br>$issued</div>
+    <div><strong>رمز التحقق</strong><br><span class="code">$code</span></div>
+    <div><strong>الجهة المصدرة</strong><br>أكاديمية تصميم الويب</div>
+  </section>
+  <div class="footer">يمكن التحقق من صحة هذه الشهادة باستخدام رمز التحقق من داخل الأكاديمية.</div>
+</main>
+<script>window.onload = function () { window.focus(); window.print(); };</script>
+</body>
+</html>
+''');
+    printWindow.document?.close();
+  }
+
   Future<void> _issueCertificate(Course course) async {
     if (course.id == null) return;
     try {
@@ -2115,6 +2195,10 @@ class _AcademyHomeState extends State<AcademyHome> {
               onPressed: () => Clipboard.setData(ClipboardData(
                 text: certificate['certificate_code']?.toString() ?? '')),
               icon: const Icon(Icons.copy), label: const Text('نسخ الرمز')),
+            FilledButton.tonalIcon(
+              onPressed: () => _printCertificate(certificate),
+              icon: const Icon(Icons.picture_as_pdf_outlined),
+              label: const Text('طباعة / PDF')),
             FilledButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('إغلاق')),
           ],
         ),
@@ -2241,14 +2325,21 @@ class _AcademyHomeState extends State<AcademyHome> {
                     style: const TextStyle(fontWeight: FontWeight.bold)),
                   subtitle: Text('الرمز: $code\nالإصدار: ${date?.toLocal().toString().substring(0, 10) ?? '—'}'),
                   isThreeLine: true,
-                  trailing: IconButton(
-                    tooltip: 'نسخ رمز الشهادة',
-                    icon: const Icon(Icons.copy_outlined),
-                    onPressed: () {
-                      Clipboard.setData(ClipboardData(text: code));
-                      _message('تم نسخ رمز الشهادة.');
-                    },
-                  ),
+                  trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                    IconButton(
+                      tooltip: 'طباعة الشهادة أو حفظها PDF',
+                      icon: const Icon(Icons.picture_as_pdf_outlined),
+                      onPressed: () => _printCertificate(certificate),
+                    ),
+                    IconButton(
+                      tooltip: 'نسخ رمز الشهادة',
+                      icon: const Icon(Icons.copy_outlined),
+                      onPressed: () {
+                        Clipboard.setData(ClipboardData(text: code));
+                        _message('تم نسخ رمز الشهادة.');
+                      },
+                    ),
+                  ]),
                 ));
             }).toList());
           },
