@@ -1412,23 +1412,21 @@ class _AcademyHomeState extends State<AcademyHome> {
           actions: [
             TextButton.icon(
               onPressed: () {
-                String csvCell(Object? value) =>
-                    '"${(value?.toString() ?? '').replaceAll('"', '""')}"';
                 final csv = [
                   ['student_name', 'certificate_status', 'certificate_code', 'issued_at'].join(','),
                   ...rows.map((row) => [
-                    csvCell(row['student_name']),
-                    csvCell(row['certificate_issued'] == true ? 'issued' : 'pending'),
-                    csvCell(row['certificate_code']),
-                    csvCell(row['issued_at']),
+                    _csvCell(row['student_name']),
+                    _csvCell(row['certificate_issued'] == true ? 'issued' : 'pending'),
+                    _csvCell(row['certificate_code']),
+                    _csvCell(row['issued_at']),
                   ].join(',')),
                 ].join('\n');
-                Clipboard.setData(ClipboardData(text: csv));
+                _downloadCsv('certificates-$courseId.csv', csv);
                 Navigator.pop(dialogContext);
-                _message('تم نسخ تقرير الشهادات بصيغة CSV.');
+                _message('تم تنزيل تقرير الشهادات بصيغة CSV.');
               },
-              icon: const Icon(Icons.copy_all_outlined),
-              label: const Text('نسخ CSV'),
+              icon: const Icon(Icons.download_outlined),
+              label: const Text('تنزيل CSV'),
             ),
             TextButton(
               onPressed: () => Navigator.pop(dialogContext),
@@ -1494,6 +1492,30 @@ class _AcademyHomeState extends State<AcademyHome> {
                   ),
           ),
           actions: [
+            TextButton.icon(
+              onPressed: () {
+                final csv = [
+                  ['student_name', 'enrolled_at', 'completed_lessons', 'total_lessons', 'progress_percent'].join(','),
+                  ...rows.map((row) {
+                    final completed = (row['completed_lessons'] as num?)?.toInt() ?? 0;
+                    final total = (row['total_lessons'] as num?)?.toInt() ?? 0;
+                    final progress = total == 0 ? 0 : (completed * 100 / total).round();
+                    return [
+                      _csvCell(row['student_name']),
+                      _csvCell(row['enrolled_at']),
+                      completed.toString(),
+                      total.toString(),
+                      progress.toString(),
+                    ].join(',');
+                  }),
+                ].join('\n');
+                _downloadCsv('students-$courseId.csv', csv);
+                Navigator.pop(dialogContext);
+                _message('تم تنزيل تقرير الطلاب بصيغة CSV.');
+              },
+              icon: const Icon(Icons.download_outlined),
+              label: const Text('تنزيل CSV'),
+            ),
             TextButton(
               onPressed: () => Navigator.pop(dialogContext),
               child: const Text('إغلاق'),
@@ -1570,7 +1592,28 @@ class _AcademyHomeState extends State<AcademyHome> {
                     ],
                   ),
           ),
-          actions: [TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('إغلاق'))],
+          actions: [
+            TextButton.icon(
+              onPressed: () {
+                final csv = [
+                  ['student_name', 'quiz_title', 'score', 'passed', 'submitted_at'].join(','),
+                  ...rows.map((row) => [
+                    _csvCell(row['student_name']),
+                    _csvCell(row['quiz_title'] ?? quizTitle),
+                    _csvCell(row['score']),
+                    row['passed'] == true ? 'true' : 'false',
+                    _csvCell(row['submitted_at']),
+                  ].join(',')),
+                ].join('\n');
+                _downloadCsv('quiz-results-$quizId.csv', csv);
+                Navigator.pop(dialogContext);
+                _message('تم تنزيل نتائج الاختبار بصيغة CSV.');
+              },
+              icon: const Icon(Icons.download_outlined),
+              label: const Text('تنزيل CSV'),
+            ),
+            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('إغلاق')),
+          ],
         ),
       );
     } catch (e) {
@@ -3157,6 +3200,18 @@ class _AcademyHomeState extends State<AcademyHome> {
         Text(value, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 19)),
         Text(label, style: const TextStyle(fontSize: 11, color: Colors.blueGrey)),
       ])]));
+
+  String _csvCell(Object? value) =>
+      '"${(value?.toString() ?? '').replaceAll('"', '""')}"';
+
+  void _downloadCsv(String filename, String csv) {
+    final anchor = web.document.createElement('a') as web.HTMLAnchorElement;
+    anchor.href = 'data:text/csv;charset=utf-8,${Uri.encodeComponent('\uFEFF$csv')}';
+    anchor.download = filename;
+    web.document.body?.append(anchor);
+    anchor.click();
+    anchor.remove();
+  }
 
   void _message(String message) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
 }
