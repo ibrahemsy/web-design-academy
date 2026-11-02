@@ -1019,6 +1019,9 @@ class _AcademyHomeState extends State<AcademyHome> {
     try {
       final raw = await supabase.rpc('get_quiz_results_for_teacher', params: {'p_quiz_id': quizId});
       final rows = (raw as List).map((r) => Map<String, dynamic>.from(r as Map)).toList();
+      final scores = rows.map((row) => (row['score'] as num?)?.toDouble() ?? 0).toList();
+      final average = scores.isEmpty ? 0.0 : scores.reduce((a, b) => a + b) / scores.length;
+      final passedCount = scores.where((score) => score >= 50).length;
       if (!mounted) return;
       await showDialog<void>(
         context: context,
@@ -1027,27 +1030,54 @@ class _AcademyHomeState extends State<AcademyHome> {
           content: SizedBox(
             width: 560,
             child: rows.isEmpty
-              ? const Text('لم يقدّم أي طالب هذا الاختبار بعد.')
-              : ListView.separated(
-                  shrinkWrap: true,
-                  itemCount: rows.length,
-                  separatorBuilder: (_, __) => const Divider(),
-                  itemBuilder: (context, index) {
-                    final row = rows[index];
-                    final score = (row['score'] as num?)?.toStringAsFixed(2) ?? '—';
-                    final date = DateTime.tryParse(row['submitted_at']?.toString() ?? '');
-                    return ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: const CircleAvatar(child: Icon(Icons.person_outline)),
-                      title: Text(row['student_name']?.toString() ?? 'طالب'),
-                      subtitle: Text(date == null ? 'تاريخ غير متاح' : date.toLocal().toString().substring(0, 16)),
-                      trailing: Text('$score%', style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: (double.tryParse(score) ?? 0) >= 50 ? Colors.green : Colors.deepOrange,
-                      )),
-                    );
-                  },
-                ),
+                ? const Text('لم يقدّم أي طالب هذا الاختبار بعد.')
+                : Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          Chip(
+                            avatar: const Icon(Icons.people_outline, size: 18),
+                            label: Text('${rows.length} محاولة'),
+                          ),
+                          Chip(
+                            avatar: const Icon(Icons.trending_up, size: 18),
+                            label: Text('المتوسط ${average.toStringAsFixed(1)}%'),
+                          ),
+                          Chip(
+                            avatar: const Icon(Icons.check_circle_outline, size: 18),
+                            label: Text('اجتاز ${passedCount}'),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        height: 360,
+                        child: ListView.separated(
+                          shrinkWrap: true,
+                          itemCount: rows.length,
+                          separatorBuilder: (_, __) => const Divider(),
+                          itemBuilder: (context, index) {
+                            final row = rows[index];
+                            final score = (row['score'] as num?)?.toStringAsFixed(2) ?? '—';
+                            final date = DateTime.tryParse(row['submitted_at']?.toString() ?? '');
+                            return ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              leading: const CircleAvatar(child: Icon(Icons.person_outline)),
+                              title: Text(row['student_name']?.toString() ?? 'طالب'),
+                              subtitle: Text(date == null ? 'تاريخ غير متاح' : date.toLocal().toString().substring(0, 16)),
+                              trailing: Text('$score%', style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: (double.tryParse(score) ?? 0) >= 50 ? Colors.green : Colors.deepOrange,
+                              )),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
           ),
           actions: [TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('إغلاق'))],
         ),
