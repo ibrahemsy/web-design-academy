@@ -204,10 +204,15 @@ class _AuthGateState extends State<AuthGate> {
 }
 
 /// Returns the current web app URL, preserving the GitHub Pages project path.
-String get academyRedirectUrl => Uri.base.replace(
-  queryParameters: const <String, String>{},
-  fragment: '',
-).toString();
+String get academyRedirectUrl {
+  final current = Uri.base;
+  return Uri(
+    scheme: current.scheme,
+    host: current.host,
+    port: current.hasPort ? current.port : null,
+    path: current.path,
+  ).toString();
+}
 
 class PasswordRecoveryScreen extends StatefulWidget {
   const PasswordRecoveryScreen({super.key});
