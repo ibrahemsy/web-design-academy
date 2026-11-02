@@ -11,6 +11,7 @@ import 'package:video_player/video_player.dart';
 import 'utils/formatters.dart';
 import 'utils/progress.dart';
 import 'utils/course_progress.dart';
+import 'utils/auth_validation.dart';
 import 'utils/roles.dart';
 
 const supabaseUrl = String.fromEnvironment(
@@ -104,6 +105,9 @@ class _AuthGateState extends State<AuthGate> {
     return StreamBuilder<AuthState>(
       stream: supabase.auth.onAuthStateChange,
       builder: (context, snapshot) {
+        if (snapshot.data?.event == AuthChangeEvent.passwordRecovery) {
+          return const PasswordRecoveryScreen();
+        }
         final user = supabase.auth.currentUser;
         if (user == null) {
           _profileUserId = null;
@@ -199,6 +203,135 @@ class _AuthGateState extends State<AuthGate> {
   }
 }
 
+/// Returns the current web app URL, preserving the GitHub Pages project path.
+String get academyRedirectUrl => Uri.base.replace(
+  queryParameters: const <String, String>{},
+  fragment: '',
+).toString();
+
+class PasswordRecoveryScreen extends StatefulWidget {
+  const PasswordRecoveryScreen({super.key});
+
+  @override
+  State<PasswordRecoveryScreen> createState() => _PasswordRecoveryScreenState();
+}
+
+class _PasswordRecoveryScreenState extends State<PasswordRecoveryScreen> {
+  final _password = TextEditingController();
+  final _confirmation = TextEditingController();
+  bool _busy = false;
+  bool _hidePassword = true;
+
+  @override
+  void dispose() {
+    _password.dispose();
+    _confirmation.dispose();
+    super.dispose();
+  }
+
+  Future<void> _savePassword() async {
+    if (!isValidPasswordPair(_password.text, _confirmation.text)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تأكد من أن كلمة المرور 6 أحرف على الأقل وأن التأكيد مطابق.')),
+      );
+      return;
+    }
+    setState(() => _busy = true);
+    try {
+      await supabase.auth.updateUser(UserAttributes(password: _password.text));
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تم تحديث كلمة المرور بنجاح.')),
+      );
+    } on AuthException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تعذر تحديث كلمة المرور. أعد فتح رابط الاستعادة وحاول مجدداً.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Directionality(
+    textDirection: TextDirection.rtl,
+    child: Scaffold(
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 430),
+            child: Card(
+              elevation: 0,
+              color: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+              child: Padding(
+                padding: const EdgeInsets.all(28),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Icon(Icons.lock_reset, color: purple, size: 52),
+                    const SizedBox(height: 14),
+                    const Text('تعيين كلمة مرور جديدة',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: ink)),
+                    const SizedBox(height: 10),
+                    const Text('أدخل كلمة المرور الجديدة لحسابك ثم أكدها.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.blueGrey)),
+                    const SizedBox(height: 22),
+                    TextField(
+                      controller: _password,
+                      obscureText: _hidePassword,
+                      decoration: InputDecoration(
+                        labelText: 'كلمة المرور الجديدة',
+                        prefixIcon: const Icon(Icons.lock_outline),
+                        suffixIcon: IconButton(
+                          onPressed: () => setState(() => _hidePassword = !_hidePassword),
+                          icon: Icon(_hidePassword ? Icons.visibility : Icons.visibility_off),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _confirmation,
+                      obscureText: _hidePassword,
+                      onSubmitted: (_) { if (!_busy) _savePassword(); },
+                      decoration: const InputDecoration(
+                        labelText: 'تأكيد كلمة المرور',
+                        prefixIcon: Icon(Icons.lock_reset),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    FilledButton(
+                      onPressed: _busy ? null : _savePassword,
+                      child: _busy
+                        ? const SizedBox(height: 20, width: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Text('حفظ كلمة المرور الجديدة'),
+                    ),
+                    TextButton(
+                      onPressed: _busy ? null : () => supabase.auth.signOut(),
+                      child: const Text('العودة إلى تسجيل الدخول'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
   @override
@@ -233,6 +366,7 @@ class _AuthScreenState extends State<AuthScreen> {
         await supabase.auth.signUp(
           email: _email.text.trim(),
           password: _password.text,
+          emailRedirectTo: academyRedirectUrl,
           data: {'display_name': _name.text.trim()},
         );
         _show('تم إرسال طلب التسجيل. تحقق من بريدك إذا كان تأكيد البريد مفعّلاً.');
@@ -334,7 +468,10 @@ class _AuthScreenState extends State<AuthScreen> {
     }
     setState(() => _busy = true);
     try {
-      await supabase.auth.resetPasswordForEmail(email);
+      await supabase.auth.resetPasswordForEmail(
+        email,
+        redirectTo: academyRedirectUrl,
+      );
       _show('إذا كان البريد مسجلاً، فسيصلك رابط إعادة تعيين كلمة المرور.');
     } on AuthException catch (error) {
       _show(error.message);
