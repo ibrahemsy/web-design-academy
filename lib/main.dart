@@ -1068,6 +1068,13 @@ class _AcademyHomeState extends State<AcademyHome> {
       final quiz = Map<String, dynamic>.from(raw as Map);
       final questions = (quiz['questions'] as List).map((q) => Map<String, dynamic>.from(q as Map)).toList();
       if (questions.isEmpty) { _message('لم تتم إضافة أسئلة لهذا الاختبار بعد.'); return; }
+      final maxAttempts = (quiz['max_attempts'] as num?)?.toInt();
+      final attemptsRemaining = (quiz['attempts_remaining'] as num?)?.toInt();
+      final passingScore = (quiz['passing_score'] as num?)?.toInt() ?? 50;
+      if (maxAttempts != null && (attemptsRemaining ?? 0) <= 0) {
+        _message('لقد استنفدت جميع محاولات هذا الاختبار.');
+        return;
+      }
       final answers = <String, int>{};
       final result = await showDialog<Map<String, dynamic>>(
         context: context,
@@ -1077,7 +1084,19 @@ class _AcademyHomeState extends State<AcademyHome> {
             content: SizedBox(width: 560, child: SingleChildScrollView(child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: questions.asMap().entries.map((entry) {
+              children: [
+                Card(
+                  elevation: 0,
+                  color: const Color(0xFFF0EFFF),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Text(
+                      'درجة النجاح: $passingScore%'
+                      '${maxAttempts == null ? ' • المحاولات غير محدودة' : ' • المتبقي: ${attemptsRemaining ?? 0} من $maxAttempts'}',
+                    ),
+                  ),
+                ),
+                ...questions.asMap().entries.map((entry) {
                 final q = entry.value;
                 final opts = (q['options'] as List).map((v) => v.toString()).toList();
                 final id = q['id'].toString();
@@ -1105,6 +1124,7 @@ class _AcademyHomeState extends State<AcademyHome> {
                   )),
                 );
               }).toList(),
+              ],
             ))),
             actions: [
               TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('إلغاء')),
@@ -1127,7 +1147,7 @@ class _AcademyHomeState extends State<AcademyHome> {
       );
       if (result != null && mounted) {
         final score = (result['score'] as num?)?.toStringAsFixed(2) ?? '0';
-        final passed = (double.tryParse(score) ?? 0) >= 50;
+        final passed = result['passed'] == true;
         _message(
           '${passed ? 'تهانينا، لقد اجتزت الاختبار!' : 'لم تصل إلى درجة النجاح بعد، حاول مجدداً.'} '
           'نتيجتك: $score% — الإجابات الصحيحة ${result['correct_answers']} من ${result['total_questions']}.',
@@ -1219,7 +1239,7 @@ class _AcademyHomeState extends State<AcademyHome> {
                         child: Text(score == '—' ? '—' : '${(double.tryParse(score) ?? 0).round()}%'),
                       ),
                       title: Text(row['quiz_title']?.toString() ?? 'اختبار'),
-                      subtitle: Text(date == null ? 'تاريخ غير متاح' : date.toLocal().toString().substring(0, 16)),
+                      subtitle: Text('${date == null ? 'تاريخ غير متاح' : date.toLocal().toString().substring(0, 16)} • ${row['passed'] == true ? 'ناجح' : 'لم يجتز'}'),
                       trailing: Text('$score%', style: const TextStyle(fontWeight: FontWeight.bold)),
                     );
                   },
@@ -1303,7 +1323,7 @@ class _AcademyHomeState extends State<AcademyHome> {
       final rows = (raw as List).map((r) => Map<String, dynamic>.from(r as Map)).toList();
       final scores = rows.map((row) => (row['score'] as num?)?.toDouble() ?? 0).toList();
       final average = scores.isEmpty ? 0.0 : scores.reduce((a, b) => a + b) / scores.length;
-      final passedCount = scores.where((score) => score >= 50).length;
+      final passedCount = rows.where((row) => row['passed'] == true).length;
       if (!mounted) return;
       await showDialog<void>(
         context: context,
@@ -1352,7 +1372,7 @@ class _AcademyHomeState extends State<AcademyHome> {
                               subtitle: Text(date == null ? 'تاريخ غير متاح' : date.toLocal().toString().substring(0, 16)),
                               trailing: Text('$score%', style: TextStyle(
                                 fontWeight: FontWeight.bold,
-                                color: (double.tryParse(score) ?? 0) >= 50 ? Colors.green : Colors.deepOrange,
+                                color: row['passed'] == true ? Colors.green : Colors.deepOrange,
                               )),
                             );
                           },
@@ -2279,7 +2299,12 @@ class _AcademyHomeState extends State<AcademyHome> {
                         child: ListTile(
                           leading: const Icon(Icons.quiz_outlined, color: purple),
                           title: Text(quiz['title'] as String? ?? 'اختبار'),
-                          subtitle: Text(widget.isTeacher ? 'إدارة الأسئلة' : 'ابدأ الاختبار'),
+                          subtitle: Text(
+                            widget.isTeacher
+                              ? 'إدارة الأسئلة'
+                              : 'درجة النجاح: ${quiz['passing_score'] ?? 50}%'
+                                '${quiz['max_attempts'] == null ? '' : ' • الحد: ${quiz['max_attempts']} محاولات'}',
+                          ),
                           trailing: widget.isTeacher
                             ? Row(mainAxisSize: MainAxisSize.min, children: [
                                 IconButton(
