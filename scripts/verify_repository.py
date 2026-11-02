@@ -16,6 +16,9 @@ DART_TESTS = (
     ROOT / "test" / "utils" / "roles_test.dart",
     ROOT / "test" / "utils" / "progress_test.dart",
 )
+ROLE_HELPER = ROOT / "lib" / "utils" / "roles.dart"
+PROGRESS_HELPER = ROOT / "lib" / "utils" / "progress.dart"
+MAIN_DART = ROOT / "lib" / "main.dart"
 WORKFLOW = ROOT / ".github" / "workflows" / "deploy.yml"
 
 def fail(message: str) -> None:
@@ -77,6 +80,13 @@ if not TEST_SQL.exists():
 for test_file in DART_TESTS:
     if not test_file.exists():
         fail(f"Required utility unit test is missing: {test_file.relative_to(ROOT)}")
+for source_file in (ROLE_HELPER, PROGRESS_HELPER):
+    if not source_file.exists():
+        fail(f"Required application utility is missing: {source_file.relative_to(ROOT)}")
+main_source = MAIN_DART.read_text(encoding="utf-8")
+for fragment in ("utils/roles.dart", "utils/progress.dart", "isSupportedAcademyRole", "canManageAcademyCourses", "buildLessonProgressPayload"):
+    if fragment not in main_source:
+        fail(f"Application is not using the tested helper: {fragment}")
 if not WORKFLOW.exists() or "flutter test" not in WORKFLOW.read_text(encoding="utf-8"):
     fail("GitHub Actions must run Flutter unit tests")
 smoke = TEST_SQL.read_text(encoding="utf-8")
@@ -95,6 +105,11 @@ for fragment in (
     "storage.buckets",
     "course-videos",
     "eligible users read course videos",
+    "profiles_role_guard",
+    "students manage own progress",
+    "profiles visible to self and admins",
+    "profile update self",
+    "substr(replace(pg_catalog.gen_random_uuid()::text, '', ''), 1, 32)",
 ):
     if fragment not in smoke:
         fail(f"Security smoke test is missing assertion: {fragment}")
@@ -102,5 +117,5 @@ for fragment in (
 print(f"PASS: {len(files)} migrations are sequential (0001-{max(versions):04d}).")
 print("PASS: certificate issuance uses the expected UUIDv4 generator and hardened search_path.")
 print("PASS: formatter, role authorization helper, and lesson-progress serialization unit tests are present and included in CI.")
-print("PASS: Supabase certificate security smoke test covers RLS, grants, RPC roles, private implementation isolation, and code generation.")
+print("PASS: Supabase security smoke test covers profile/role/progress policies, private video storage, certificate RLS, RPC grants, and code generation.")
 print("NOTE: These checks are static. Run security_smoke_test.sql on the target Supabase database before launch.")
