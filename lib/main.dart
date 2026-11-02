@@ -436,6 +436,201 @@ class _AcademyHomeState extends State<AcademyHome> {
   }
 
 
+
+  Future<void> _createQuiz() async {
+    final ownedCourses = remoteCourses.where((c) => c.id != null && (c.status == 'draft' || c.status == 'published')).toList();
+    if (ownedCourses.isEmpty) {
+      _message('أنشئ دورة أولاً قبل إنشاء اختبار.');
+      return;
+    }
+    String? courseId = ownedCourses.first.id;
+    final title = TextEditingController();
+    final prompt = TextEditingController();
+    final options = List.generate(4, (_) => TextEditingController());
+    int correct = 0;
+    bool saving = false;
+    final created = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, refresh) => AlertDialog(
+          title: const Text('إنشاء اختبار'),
+          content: SizedBox(width: 520, child: SingleChildScrollView(child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DropdownButtonFormField<String>(
+                value: courseId,
+                decoration: const InputDecoration(labelText: 'الدورة'),
+                items: ownedCourses.map((c) => DropdownMenuItem(value: c.id, child: Text(c.title, overflow: TextOverflow.ellipsis))).toList(),
+                onChanged: saving ? null : (v) => refresh(() => courseId = v),
+              ),
+              TextField(controller: title, decoration: const InputDecoration(labelText: 'عنوان الاختبار')),
+              const SizedBox(height: 10),
+              TextField(controller: prompt, maxLines: 2, decoration: const InputDecoration(labelText: 'السؤال الأول')),
+              const SizedBox(height: 8),
+              ...List.generate(4, (i) => Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: TextField(controller: options[i], decoration: InputDecoration(labelText: 'الخيار ${i + 1}')),
+              )),
+              DropdownButtonFormField<int>(
+                value: correct,
+                decoration: const InputDecoration(labelText: 'الإجابة الصحيحة (للمدرّس فقط)'),
+                items: List.generate(4, (i) => DropdownMenuItem(value: i, child: Text('الخيار ${i + 1}'))),
+                onChanged: saving ? null : (v) => refresh(() => correct = v ?? 0),
+              ),
+            ],
+          ))),
+          actions: [
+            TextButton(onPressed: saving ? null : () => Navigator.pop(dialogContext, false), child: const Text('إلغاء')),
+            FilledButton(
+              onPressed: saving ? null : () async {
+                if (courseId == null || title.text.trim().isEmpty || prompt.text.trim().isEmpty ||
+                    options.any((o) => o.text.trim().isEmpty)) {
+                  _message('أكمل عنوان الاختبار والسؤال والخيارات الأربعة.');
+                  return;
+                }
+                refresh(() => saving = true);
+                try {
+                  final quiz = await supabase.from('quizzes').insert({
+                    'course_id': courseId, 'title': title.text.trim(),
+                  }).select('id').single();
+                  await supabase.from('quiz_questions').insert({
+                    'quiz_id': quiz['id'],
+                    'prompt': prompt.text.trim(),
+                    'options': options.map((o) => o.text.trim()).toList(),
+                    'correct_option': correct,
+                    'position': 1,
+                  });
+                  if (dialogContext.mounted) Navigator.pop(dialogContext, true);
+                } catch (e) {
+                  refresh(() => saving = false);
+                  _message('تعذر إنشاء الاختبار: $e');
+                }
+              },
+              child: saving ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('إنشاء الاختبار'),
+            ),
+          ],
+        ),
+      ),
+    );
+    title.dispose();
+    prompt.dispose();
+    for (final option in options) { option.dispose(); }
+    if (created == true && mounted) _message('تم إنشاء الاختبار وإضافة السؤال الأول. يمكنك إضافة أسئلة أخرى من صفحة الدورة.');
+  }
+
+  Future<void> _addQuizQuestion(String quizId) async {
+    final prompt = TextEditingController();
+    final options = List.generate(4, (_) => TextEditingController());
+    int correct = 0;
+    final added = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, refresh) => AlertDialog(
+          title: const Text('إضافة سؤال للاختبار'),
+          content: SizedBox(width: 480, child: SingleChildScrollView(child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(controller: prompt, maxLines: 2, decoration: const InputDecoration(labelText: 'نص السؤال')),
+              ...List.generate(4, (i) => TextField(controller: options[i], decoration: InputDecoration(labelText: 'الخيار ${i + 1}'))),
+              DropdownButtonFormField<int>(
+                value: correct,
+                decoration: const InputDecoration(labelText: 'الإجابة الصحيحة'),
+                items: List.generate(4, (i) => DropdownMenuItem(value: i, child: Text('الخيار ${i + 1}'))),
+                onChanged: (v) => refresh(() => correct = v ?? 0),
+              ),
+            ],
+          ))),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('إلغاء')),
+            FilledButton(onPressed: () async {
+              if (prompt.text.trim().isEmpty || options.any((o) => o.text.trim().isEmpty)) {
+                _message('أكمل السؤال والخيارات الأربعة.');
+                return;
+              }
+              try {
+                final existing = await supabase.from('quiz_questions').select('position')
+                  .eq('quiz_id', quizId).order('position', ascending: false).limit(1);
+                final position = existing.isEmpty ? 1 : (existing.first['position'] as int) + 1;
+                await supabase.from('quiz_questions').insert({
+                  'quiz_id': quizId, 'prompt': prompt.text.trim(),
+                  'options': options.map((o) => o.text.trim()).toList(),
+                  'correct_option': correct, 'position': position,
+                });
+                if (dialogContext.mounted) Navigator.pop(dialogContext, true);
+              } catch (e) { _message('تعذر إضافة السؤال: $e'); }
+            }, child: const Text('حفظ السؤال')),
+          ],
+        ),
+      ),
+    );
+    prompt.dispose();
+    for (final option in options) { option.dispose(); }
+    if (added == true && mounted) _message('تمت إضافة السؤال.');
+  }
+
+  Future<void> _openQuiz(String quizId) async {
+    try {
+      final raw = await supabase.rpc('get_quiz_for_student', params: {'p_quiz_id': quizId});
+      final quiz = Map<String, dynamic>.from(raw as Map);
+      final questions = (quiz['questions'] as List).map((q) => Map<String, dynamic>.from(q as Map)).toList();
+      if (questions.isEmpty) { _message('لم تتم إضافة أسئلة لهذا الاختبار بعد.'); return; }
+      final answers = <String, int>{};
+      final result = await showDialog<Map<String, dynamic>>(
+        context: context,
+        builder: (dialogContext) => StatefulBuilder(
+          builder: (context, refresh) => AlertDialog(
+            title: Text(quiz['title'] as String? ?? 'الاختبار'),
+            content: SizedBox(width: 560, child: SingleChildScrollView(child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: questions.asMap().entries.map((entry) {
+                final q = entry.value;
+                final opts = (q['options'] as List).map((v) => v.toString()).toList();
+                final id = q['id'].toString();
+                return Card(
+                  elevation: 0, color: const Color(0xFFF7F7FC),
+                  child: Padding(padding: const EdgeInsets.all(12), child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('${entry.key + 1}. ${q['prompt']}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                      ...List.generate(opts.length, (i) => RadioListTile<int>(
+                        dense: true, contentPadding: EdgeInsets.zero,
+                        title: Text(opts[i]), value: i, groupValue: answers[id],
+                        onChanged: (v) => refresh(() { if (v != null) answers[id] = v; }),
+                      )),
+                    ],
+                  )),
+                );
+              }).toList(),
+            ))),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('إلغاء')),
+              FilledButton(
+                onPressed: answers.length != questions.length ? null : () async {
+                  try {
+                    final response = await supabase.rpc('submit_quiz_attempt', params: {
+                      'p_quiz_id': quizId, 'p_answers': answers,
+                    });
+                    if (dialogContext.mounted) Navigator.pop(dialogContext, Map<String, dynamic>.from(response as Map));
+                  } catch (e) {
+                    _message('تعذر تسليم الاختبار: $e');
+                  }
+                },
+                child: const Text('تسليم الإجابات'),
+              ),
+            ],
+          ),
+        ),
+      );
+      if (result != null && mounted) {
+        final score = (result['score'] as num?)?.toStringAsFixed(2) ?? '0';
+        _message('نتيجتك: $score% — الإجابات الصحيحة ${result['correct_answers']} من ${result['total_questions']}.');
+      }
+    } catch (e) {
+      _message('تعذر فتح الاختبار. تأكد من الالتحاق بالدورة المنشورة. $e');
+    }
+  }
+
   Future<void> _addLesson(Course course) async {
     if (course.id == null) return;
     final title = TextEditingController();
@@ -697,7 +892,11 @@ class _AcademyHomeState extends State<AcademyHome> {
     ]));
 
   Widget _teacherAction(IconData icon, String label) => OutlinedButton.icon(
-    onPressed: () { if (icon == Icons.add) { _createCourse(); } else { _message(t('إضافة الدروس ورفع الفيديوهات ستكون الخطوة التالية.', 'Lesson creation and video uploads are next.')); } },
+    onPressed: () {
+      if (icon == Icons.add) { _createCourse(); }
+      else if (icon == Icons.quiz) { _createQuiz(); }
+      else { _message(t('افتح الدورة لإضافة الدروس ورفع الفيديوهات.', 'Open a course to add lessons and videos.')); }
+    },
     icon: Icon(icon, color: Colors.white), label: Text(label, style: const TextStyle(color: Colors.white)),
     style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.white38)));
 
@@ -840,6 +1039,8 @@ class _AcademyHomeState extends State<AcademyHome> {
       .select('id').eq('course_id', course.id!)
       .eq('student_id', supabase.auth.currentUser!.id)
       .maybeSingle().then((row) => row != null);
+    Future<List<Map<String, dynamic>>> quizzesFuture = supabase.from('quizzes')
+      .select('id,title').eq('course_id', course.id!).order('created_at');
 
     showModalBottomSheet(
       context: context,
@@ -924,6 +1125,49 @@ class _AcademyHomeState extends State<AcademyHome> {
                         );
                       },
                     ),
+                  const Divider(height: 28),
+                  Row(children: [
+                    const Expanded(child: Text('اختبارات الدورة', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold))),
+                    if (widget.isTeacher)
+                      TextButton.icon(
+                        onPressed: () async {
+                          await _createQuiz();
+                          refreshSheet(() {
+                            quizzesFuture = supabase.from('quizzes').select('id,title')
+                              .eq('course_id', course.id!).order('created_at');
+                          });
+                        },
+                        icon: const Icon(Icons.add), label: const Text('إنشاء اختبار'),
+                      ),
+                  ]),
+                  FutureBuilder<List<Map<String, dynamic>>>(
+                    future: quizzesFuture,
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) return const LinearProgressIndicator();
+                      if (snapshot.hasError) return const Text('تعذر تحميل الاختبارات.');
+                      final quizzes = snapshot.data ?? [];
+                      if (quizzes.isEmpty) return const Text('لا توجد اختبارات لهذه الدورة بعد.');
+                      return Column(children: quizzes.map((quiz) => Card(
+                        elevation: 0, color: const Color(0xFFF7F7FC),
+                        child: ListTile(
+                          leading: const Icon(Icons.quiz_outlined, color: purple),
+                          title: Text(quiz['title'] as String? ?? 'اختبار'),
+                          subtitle: Text(widget.isTeacher ? 'إدارة الأسئلة' : 'ابدأ الاختبار'),
+                          trailing: widget.isTeacher
+                            ? IconButton(icon: const Icon(Icons.add_circle_outline), tooltip: 'إضافة سؤال',
+                                onPressed: () async {
+                                  await _addQuizQuestion(quiz['id'] as String);
+                                  refreshSheet(() {
+                                    quizzesFuture = supabase.from('quizzes').select('id,title')
+                                      .eq('course_id', course.id!).order('created_at');
+                                  });
+                                })
+                            : const Icon(Icons.chevron_left),
+                          onTap: widget.isTeacher ? null : () => _openQuiz(quiz['id'] as String),
+                        ),
+                      )).toList());
+                    },
+                  ),
                   const Divider(height: 28),
                   const Text('محتوى الدورة', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 10),
