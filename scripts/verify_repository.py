@@ -22,6 +22,7 @@ PROGRESS_HELPER = ROOT / "lib" / "utils" / "progress.dart"
 COURSE_PROGRESS_HELPER = ROOT / "lib" / "utils" / "course_progress.dart"
 MAIN_DART = ROOT / "lib" / "main.dart"
 WORKFLOW = ROOT / ".github" / "workflows" / "deploy.yml"
+DEPLOYMENT_SMOKE_TEST = ROOT / "scripts" / "smoke_test_deployment.py"
 
 def fail(message: str) -> None:
     print(f"FAIL: {message}", file=sys.stderr)
@@ -79,6 +80,12 @@ for fragment in required_fragments:
 
 if not TEST_SQL.exists():
     fail("Supabase security smoke test is missing")
+if not DEPLOYMENT_SMOKE_TEST.exists():
+    fail("Deployed website HTTP smoke test is missing")
+try:
+    compile(DEPLOYMENT_SMOKE_TEST.read_text(encoding="utf-8"), str(DEPLOYMENT_SMOKE_TEST), "exec")
+except SyntaxError as error:
+    fail(f"Deployment smoke test has invalid Python syntax: {error}")
 for test_file in DART_TESTS:
     if not test_file.exists():
         fail(f"Required utility unit test is missing: {test_file.relative_to(ROOT)}")
