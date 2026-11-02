@@ -437,7 +437,7 @@ class _AcademyHomeState extends State<AcademyHome> {
 
 
 
-  Future<void> _createQuiz() async {
+  Future<void> _createQuiz({String? initialCourseId}) async {
     final currentUser = supabase.auth.currentUser;
     if (currentUser == null) return;
     final ownedCourses = await supabase.from('courses')
@@ -446,7 +446,9 @@ class _AcademyHomeState extends State<AcademyHome> {
       _message('أنشئ دورة أولاً قبل إنشاء اختبار.');
       return;
     }
-    String? courseId = ownedCourses.first['id'] as String?;
+    String? courseId = ownedCourses.any((c) => c['id'] == initialCourseId)
+        ? initialCourseId
+        : ownedCourses.first['id'] as String?;
     final title = TextEditingController();
     final prompt = TextEditingController();
     final options = List.generate(4, (_) => TextEditingController());
@@ -631,6 +633,96 @@ class _AcademyHomeState extends State<AcademyHome> {
       }
     } catch (e) {
       _message('تعذر فتح الاختبار. تأكد من الالتحاق بالدورة المنشورة. $e');
+    }
+  }
+
+
+  Future<void> _showMyQuizHistory() async {
+    final user = supabase.auth.currentUser;
+    if (user == null) return;
+    try {
+      final rows = await supabase.from('quiz_attempts')
+        .select('id,score,submitted_at,quizzes(title)')
+        .eq('student_id', user.id)
+        .order('submitted_at', ascending: false);
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('سجل نتائج اختباراتي'),
+          content: SizedBox(
+            width: 520,
+            child: rows.isEmpty
+              ? const Text('لم تسلّم أي اختبار بعد.')
+              : ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: rows.length,
+                  separatorBuilder: (_, __) => const Divider(),
+                  itemBuilder: (context, index) {
+                    final row = rows[index];
+                    final quiz = row['quizzes'] is Map ? row['quizzes'] as Map : const {};
+                    final score = (row['score'] as num?)?.toStringAsFixed(2) ?? '—';
+                    final date = DateTime.tryParse(row['submitted_at']?.toString() ?? '');
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: CircleAvatar(
+                        backgroundColor: const Color(0xFFE8E7FF),
+                        child: Text(score == '—' ? '—' : '${(double.tryParse(score) ?? 0).round()}%'),
+                      ),
+                      title: Text(quiz['title']?.toString() ?? 'اختبار'),
+                      subtitle: Text(date == null ? 'تاريخ غير متاح' : date.toLocal().toString().substring(0, 16)),
+                      trailing: Text('$score%', style: const TextStyle(fontWeight: FontWeight.bold)),
+                    );
+                  },
+                ),
+          ),
+          actions: [TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('إغلاق'))],
+        ),
+      );
+    } catch (e) {
+      _message('تعذر تحميل سجل الاختبارات: $e');
+    }
+  }
+
+  Future<void> _showQuizResults(String quizId, String quizTitle) async {
+    try {
+      final raw = await supabase.rpc('get_quiz_results_for_teacher', params: {'p_quiz_id': quizId});
+      final rows = (raw as List).map((r) => Map<String, dynamic>.from(r as Map)).toList();
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text('نتائج: $quizTitle'),
+          content: SizedBox(
+            width: 560,
+            child: rows.isEmpty
+              ? const Text('لم يقدّم أي طالب هذا الاختبار بعد.')
+              : ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: rows.length,
+                  separatorBuilder: (_, __) => const Divider(),
+                  itemBuilder: (context, index) {
+                    final row = rows[index];
+                    final score = (row['score'] as num?)?.toStringAsFixed(2) ?? '—';
+                    final date = DateTime.tryParse(row['submitted_at']?.toString() ?? '');
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const CircleAvatar(child: Icon(Icons.person_outline)),
+                      title: Text(row['student_name']?.toString() ?? 'طالب'),
+                      subtitle: Text(date == null ? 'تاريخ غير متاح' : date.toLocal().toString().substring(0, 16)),
+                      trailing: Text('$score%', style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: (double.tryParse(score) ?? 0) >= 50 ? Colors.green : Colors.deepOrange,
+                      )),
+                    );
+                  },
+                ),
+          ),
+          actions: [TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('إغلاق'))],
+        ),
+      );
+    } catch (e) {
+      _message('تعذر تحميل النتائج. تحقق من ملكيتك للدورة. $e');
     }
   }
 
@@ -987,6 +1079,14 @@ class _AcademyHomeState extends State<AcademyHome> {
     Text(user?.email ?? '', style: const TextStyle(color: Colors.blueGrey)),
     const SizedBox(height: 24),
     ListTile(leading: const Icon(Icons.verified_user_outlined), title: Text(roleLabel)),
+    if (!widget.isTeacher)
+      ListTile(
+        leading: const Icon(Icons.history_edu_outlined),
+        title: const Text('سجل نتائج اختباراتي'),
+        subtitle: const Text('عرض المحاولات والدرجات السابقة'),
+        trailing: const Icon(Icons.chevron_left),
+        onTap: _showMyQuizHistory,
+      ),
     ListTile(leading: const Icon(Icons.logout), title: Text(t('تسجيل الخروج', 'Sign out')),
       onTap: () async { await supabase.auth.signOut(); }),
     SwitchListTile(title: Text(t('English interface', 'الواجهة العربية')), value: english,
@@ -1134,7 +1234,7 @@ class _AcademyHomeState extends State<AcademyHome> {
                     if (widget.isTeacher)
                       TextButton.icon(
                         onPressed: () async {
-                          await _createQuiz();
+                          await _createQuiz(initialCourseId: course.id);
                           refreshSheet(() {
                             quizzesFuture = supabase.from('quizzes').select('id,title')
                               .eq('course_id', course.id!).order('created_at');
@@ -1157,14 +1257,21 @@ class _AcademyHomeState extends State<AcademyHome> {
                           title: Text(quiz['title'] as String? ?? 'اختبار'),
                           subtitle: Text(widget.isTeacher ? 'إدارة الأسئلة' : 'ابدأ الاختبار'),
                           trailing: widget.isTeacher
-                            ? IconButton(icon: const Icon(Icons.add_circle_outline), tooltip: 'إضافة سؤال',
-                                onPressed: () async {
-                                  await _addQuizQuestion(quiz['id'] as String);
-                                  refreshSheet(() {
-                                    quizzesFuture = supabase.from('quizzes').select('id,title')
-                                      .eq('course_id', course.id!).order('created_at');
-                                  });
-                                })
+                            ? Row(mainAxisSize: MainAxisSize.min, children: [
+                                IconButton(
+                                  icon: const Icon(Icons.bar_chart_outlined),
+                                  tooltip: 'عرض نتائج الطلاب',
+                                  onPressed: () => _showQuizResults(quiz['id'] as String, quiz['title'] as String? ?? 'اختبار'),
+                                ),
+                                IconButton(icon: const Icon(Icons.add_circle_outline), tooltip: 'إضافة سؤال',
+                                  onPressed: () async {
+                                    await _addQuizQuestion(quiz['id'] as String);
+                                    refreshSheet(() {
+                                      quizzesFuture = supabase.from('quizzes').select('id,title')
+                                        .eq('course_id', course.id!).order('created_at');
+                                    });
+                                  }),
+                              ])
                             : const Icon(Icons.chevron_left),
                           onTap: widget.isTeacher ? null : () => _openQuiz(quiz['id'] as String),
                         ),
