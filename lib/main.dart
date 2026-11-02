@@ -388,7 +388,7 @@ class _AcademyHomeState extends State<AcademyHome> {
             OutlinedButton.icon(
               onPressed: saving ? null : () async {
                 final picked = await FilePicker.platform.pickFiles(
-                  type: FileType.video, allowMultiple: false, withData: true,
+                  type: FileType.custom, allowedExtensions: ['mp4', 'webm', 'mov'], allowMultiple: false, withData: true,
                 );
                 if (picked != null && picked.files.isNotEmpty) {
                   refresh(() => selectedVideo = picked.files.first);
@@ -835,8 +835,9 @@ class _AcademyHomeState extends State<AcademyHome> {
                               final url = await supabase.storage.from('course-videos')
                                 .createSignedUrl(path, 3600);
                               if (!context.mounted) return;
-                              Navigator.pop(sheetContext);
-                              Navigator.of(context).push(MaterialPageRoute(
+                              final navigator = Navigator.of(sheetContext);
+                              navigator.pop();
+                              navigator.push(MaterialPageRoute(
                                 builder: (_) => LessonPlayerScreen(
                                   title: lesson['title'] as String? ?? 'مشغل الدرس',
                                   videoUrl: url,
