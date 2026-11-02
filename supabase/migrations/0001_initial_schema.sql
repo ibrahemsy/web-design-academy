@@ -164,15 +164,40 @@ alter table public.quizzes enable row level security;
 alter table public.quiz_questions enable row level security;
 alter table public.quiz_attempts enable row level security;
 
+-- SECURITY DEFINER helpers avoid recursive profile-table RLS checks in policies.
+create or replace function public.is_admin()
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $
+  select exists (
+    select 1 from public.profiles p
+    where p.id = auth.uid() and p.role = 'admin'::public.user_role
+  );
+$;
+
+create or replace function public.is_teacher_or_admin()
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $
+  select exists (
+    select 1 from public.profiles p
+    where p.id = auth.uid()
+      and p.role in ('teacher'::public.user_role, 'admin'::public.user_role)
+  );
+$;
+
 -- Profiles: users can read their own profile; teachers/admins can see enrolled learners
 -- through application-specific reporting added in a later migration.
 create policy "profile read self" on public.profiles
 for select to authenticated using (id = auth.uid());
 create policy "admins read all profiles" on public.profiles
-for select to authenticated using (exists (
-  select 1 from public.profiles admin_profile
-  where admin_profile.id = auth.uid() and admin_profile.role = 'admin'
-));
+for select to authenticated using (public.is_admin());
 create policy "profile update self" on public.profiles
 for update to authenticated using (id = auth.uid()) with check (id = auth.uid());
 
@@ -180,12 +205,10 @@ for update to authenticated using (id = auth.uid()) with check (id = auth.uid())
 create policy "published courses visible" on public.courses
 for select to anon, authenticated
 using (status = 'published' or teacher_id = auth.uid()
-  or exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin'));
+  or public.is_admin());
 create policy "teachers create own courses" on public.courses
 for insert to authenticated
-with check (teacher_id = auth.uid() and exists (
-  select 1 from public.profiles p where p.id = auth.uid() and p.role in ('teacher','admin')
-));
+with check (teacher_id = auth.uid() and public.is_teacher_or_admin());
 create policy "teachers update own courses" on public.courses
 for update to authenticated
 using (teacher_id = auth.uid() or exists (
