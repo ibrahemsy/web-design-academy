@@ -25,6 +25,9 @@
 10. `0010_allow_preview_video_playback.sql` — مشاهدة فيديوهات المعاينة المنشورة مع بقاء bucket خاصاً.
 11. `0011_admin_user_role_management.sql` — إدارة أدوار الحسابات من لوحة المدير مع حماية آخر مدير.
 12. `0012_teacher_course_roster_and_progress.sql` — عرض طلاب الدورة وتقدمهم للمدرّس/المدير.
+13. `0013_restrict_preview_to_published_courses.sql` — منع معاينة دروس الدورات غير المنشورة.
+14. `0014_restrict_archived_course_video_access.sql` — إيقاف وصول الطلاب لفيديوهات الدورات المؤرشفة.
+15. `0015_serialize_admin_role_changes.sql` — منع تعارض طلبات تغيير أدوار المديرين بالتزامن.
 
 إذا كانت هذه التغييرات مطبقة بالفعل على مشروع الأكاديمية المتصل، فلا تعِد تشغيلها عليه.
 
