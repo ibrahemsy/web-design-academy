@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:video_player/video_player.dart';
+import 'utils/formatters.dart';
 
 const supabaseUrl = String.fromEnvironment(
   'SUPABASE_URL',
@@ -1459,10 +1460,10 @@ class _AcademyHomeState extends State<AcademyHome> {
                 final csv = [
                   ['student_name', 'certificate_status', 'certificate_code', 'issued_at'].join(','),
                   ...rows.map((row) => [
-                    _csvCell(row['student_name']),
-                    _csvCell(row['certificate_issued'] == true ? 'issued' : 'pending'),
-                    _csvCell(row['certificate_code']),
-                    _csvCell(row['issued_at']),
+                    csvCell(row['student_name']),
+                    csvCell(row['certificate_issued'] == true ? 'issued' : 'pending'),
+                    csvCell(row['certificate_code']),
+                    csvCell(row['issued_at']),
                   ].join(',')),
                 ].join('\n');
                 _downloadCsv('certificates-$courseId.csv', csv);
@@ -1545,8 +1546,8 @@ class _AcademyHomeState extends State<AcademyHome> {
                     final total = (row['total_lessons'] as num?)?.toInt() ?? 0;
                     final progress = total == 0 ? 0 : (completed * 100 / total).round();
                     return [
-                      _csvCell(row['student_name']),
-                      _csvCell(row['enrolled_at']),
+                      csvCell(row['student_name']),
+                      csvCell(row['enrolled_at']),
                       completed.toString(),
                       total.toString(),
                       progress.toString(),
@@ -1642,11 +1643,11 @@ class _AcademyHomeState extends State<AcademyHome> {
                 final csv = [
                   ['student_name', 'quiz_title', 'score', 'passed', 'submitted_at'].join(','),
                   ...rows.map((row) => [
-                    _csvCell(row['student_name']),
-                    _csvCell(row['quiz_title'] ?? quizTitle),
-                    _csvCell(row['score']),
+                    csvCell(row['student_name']),
+                    csvCell(row['quiz_title'] ?? quizTitle),
+                    csvCell(row['score']),
                     row['passed'] == true ? 'true' : 'false',
-                    _csvCell(row['submitted_at']),
+                    csvCell(row['submitted_at']),
                   ].join(',')),
                 ].join('\n');
                 _downloadCsv('quiz-results-$quizId.csv', csv);
@@ -2234,9 +2235,9 @@ class _AcademyHomeState extends State<AcademyHome> {
                     final csv = [
                       ['display_name', 'role', 'created_at'].join(','),
                       ...allUsers.map((user) => [
-                        _csvCell(user['display_name']),
-                        _csvCell(user['role']),
-                        _csvCell(user['created_at']),
+                        csvCell(user['display_name']),
+                        csvCell(user['role']),
+                        csvCell(user['created_at']),
                       ].join(',')),
                     ].join('\n');
                     _downloadCsv('academy-users.csv', csv);
@@ -2625,21 +2626,12 @@ class _AcademyHomeState extends State<AcademyHome> {
     return (raw as List).map((row) => Map<String, dynamic>.from(row as Map)).toList();
   }
 
-  String _certificateHtmlEscape(Object? value) {
-    return (value?.toString() ?? '')
-        .replaceAll('&', '&amp;')
-        .replaceAll('<', '&lt;')
-        .replaceAll('>', '&gt;')
-        .replaceAll('"', '&quot;')
-        .replaceAll("'", '&#39;');
-  }
-
   void _printCertificate(Map<String, dynamic> certificate) {
-    final student = _certificateHtmlEscape(certificate['student_name']);
-    final course = _certificateHtmlEscape(certificate['course_title']);
-    final code = _certificateHtmlEscape(certificate['certificate_code']);
+    final student = htmlEscapeText(certificate['student_name']);
+    final course = htmlEscapeText(certificate['course_title']);
+    final code = htmlEscapeText(certificate['certificate_code']);
     final issuedAt = DateTime.tryParse(certificate['issued_at']?.toString() ?? '');
-    final issued = _certificateHtmlEscape(
+    final issued = htmlEscapeText(
       issuedAt == null
           ? '—'
           : '${issuedAt.toLocal().year}-${issuedAt.toLocal().month.toString().padLeft(2, '0')}-${issuedAt.toLocal().day.toString().padLeft(2, '0')}',
@@ -3325,9 +3317,6 @@ class _AcademyHomeState extends State<AcademyHome> {
         Text(value, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 19)),
         Text(label, style: const TextStyle(fontSize: 11, color: Colors.blueGrey)),
       ])]));
-
-  String _csvCell(Object? value) =>
-      '"${(value?.toString() ?? '').replaceAll('"', '""')}"';
 
   void _downloadCsv(String filename, String csv) {
     final anchor = web.document.createElement('a') as web.HTMLAnchorElement;
