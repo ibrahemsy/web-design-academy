@@ -2029,7 +2029,7 @@ class _AcademyHomeState extends State<AcademyHome> {
                               if (!context.mounted) return;
                               final navigator = Navigator.of(sheetContext);
                               navigator.pop();
-                              navigator.push(MaterialPageRoute(
+                              await navigator.push(MaterialPageRoute(
                                 builder: (_) => LessonPlayerScreen(
                                   title: lesson['title'] as String? ?? 'مشغل الدرس',
                                   videoUrl: url,
@@ -2037,6 +2037,12 @@ class _AcademyHomeState extends State<AcademyHome> {
                                   allowProgress: canTrackProgress,
                                 ),
                               ));
+                              if (mounted && canTrackProgress) {
+                                setState(() {
+                                  learningCoursesFuture = _loadLearningCourses();
+                                  dashboardStatsFuture = _loadDashboardStats();
+                                });
+                              }
                             } catch (error) {
                               _message('لا يمكن فتح الفيديو. تحقق من تسجيلك في الدورة.');
                             }
