@@ -33,7 +33,7 @@ expected = list(range(1, max(versions) + 1))
 if versions != expected:
     fail(f"Migration sequence has a gap or is out of order: found {versions}")
 
-latest = MIGRATIONS / f"{max(versions):04d}_increase_certificate_code_entropy.sql"
+latest = MIGRATIONS / "0025_increase_certificate_code_entropy.sql"
 if not latest.exists():
     fail("Latest certificate entropy migration is missing")
 
@@ -59,6 +59,7 @@ for fragment in (
     "public.get_my_course_certificates()",
     "public.verify_course_certificate(text)",
     "public.get_course_certificate_report(uuid)",
+    "private.get_course_certificate_report(uuid)",
     "pg_catalog.gen_random_uuid()",
 ):
     if fragment not in smoke:
@@ -66,5 +67,5 @@ for fragment in (
 
 print(f"PASS: {len(files)} migrations are sequential (0001-{max(versions):04d}).")
 print("PASS: certificate issuance uses the expected UUIDv4 generator and hardened search_path.")
-print("PASS: Supabase certificate security smoke test covers RLS, grants, RPC roles, and code generation.")
+print("PASS: Supabase certificate security smoke test covers RLS, grants, RPC roles, private implementation isolation, and code generation.")
 print("NOTE: These checks are static. Run security_smoke_test.sql on the target Supabase database before launch.")
