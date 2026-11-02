@@ -69,7 +69,7 @@ required_fragments = (
     "security definer",
     "set search_path = ''",
     "pg_catalog.gen_random_uuid()",
-    "substr(replace(pg_catalog.gen_random_uuid()::text, '-', ''), 1, 32)",
+    "substr(replace(pg_catalog.gen_random_uuid()::text, ''-'', ''''), 1, 32)",
 )
 for fragment in required_fragments:
     if fragment not in latest_sql:
