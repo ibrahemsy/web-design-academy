@@ -680,6 +680,146 @@ class _AcademyHomeState extends State<AcademyHome> {
     if (added == true && mounted) _message('تمت إضافة السؤال.');
   }
 
+  Future<void> _editQuizQuestion(Map<String, dynamic> question) async {
+    final id = question['id'] as String?;
+    if (id == null) return;
+    final prompt = TextEditingController(text: question['prompt']?.toString() ?? '');
+    final currentOptions = (question['options'] as List? ?? const [])
+        .map((value) => value.toString()).toList();
+    final options = currentOptions.map((value) => TextEditingController(text: value)).toList();
+    int correct = (question['correct_option'] as num?)?.toInt() ?? 0;
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, refresh) => AlertDialog(
+          title: const Text('تعديل السؤال'),
+          content: SizedBox(
+            width: 480,
+            child: SingleChildScrollView(
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                TextField(controller: prompt, maxLines: 2,
+                  decoration: const InputDecoration(labelText: 'نص السؤال')),
+                const SizedBox(height: 8),
+                ...options.asMap().entries.map((entry) => Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: TextField(controller: entry.value,
+                    decoration: InputDecoration(labelText: 'الخيار ${entry.key + 1}')),
+                )),
+                DropdownButtonFormField<int>(
+                  value: correct < 0 || correct >= options.length ? 0 : correct,
+                  decoration: const InputDecoration(labelText: 'الإجابة الصحيحة'),
+                  items: List.generate(options.length, (i) =>
+                    DropdownMenuItem(value: i, child: Text('الخيار ${i + 1}'))),
+                  onChanged: (value) => refresh(() => correct = value ?? 0),
+                ),
+              ]),
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('إلغاء')),
+            FilledButton(
+              onPressed: () async {
+                if (prompt.text.trim().isEmpty || options.length < 2 ||
+                    options.any((option) => option.text.trim().isEmpty)) {
+                  _message('أكمل نص السؤال وجميع الخيارات.');
+                  return;
+                }
+                try {
+                  await supabase.from('quiz_questions').update({
+                    'prompt': prompt.text.trim(),
+                    'options': options.map((option) => option.text.trim()).toList(),
+                    'correct_option': correct,
+                  }).eq('id', id);
+                  if (dialogContext.mounted) Navigator.pop(dialogContext, true);
+                } catch (error) {
+                  _message('تعذر تعديل السؤال: $error');
+                }
+              },
+              child: const Text('حفظ السؤال'),
+            ),
+          ],
+        ),
+      ),
+    );
+    prompt.dispose();
+    for (final option in options) {
+      option.dispose();
+    }
+    if (saved == true && mounted) _message('تم تحديث السؤال.');
+  }
+
+  Future<void> _manageQuizQuestions(String quizId, String quizTitle) async {
+    Future<List<Map<String, dynamic>>> loadQuestions() async {
+      final rows = await supabase.from('quiz_questions')
+          .select('id,prompt,options,correct_option,position')
+          .eq('quiz_id', quizId).order('position');
+      return (rows as List).map((row) => Map<String, dynamic>.from(row)).toList();
+    }
+
+    var questionsFuture = loadQuestions();
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, refresh) => AlertDialog(
+          title: Text('أسئلة: $quizTitle'),
+          content: SizedBox(
+            width: 560,
+            child: FutureBuilder<List<Map<String, dynamic>>>(
+              future: questionsFuture,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const SizedBox(
+                    height: 100,
+                    child: Center(child: CircularProgressIndicator()),
+                  );
+                }
+                if (snapshot.hasError) {
+                  return const Text('تعذر تحميل أسئلة الاختبار.');
+                }
+                final questions = snapshot.data ?? [];
+                if (questions.isEmpty) {
+                  return const Text('لا توجد أسئلة في هذا الاختبار.');
+                }
+                return ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: questions.length,
+                  separatorBuilder: (_, __) => const Divider(),
+                  itemBuilder: (context, index) {
+                    final question = questions[index];
+                    final opts = (question['options'] as List? ?? const []);
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: CircleAvatar(child: Text('${index + 1}')),
+                      title: Text(question['prompt']?.toString() ?? 'سؤال'),
+                      subtitle: Text('${opts.length} خيارات'),
+                      trailing: IconButton(
+                        tooltip: 'تعديل السؤال',
+                        icon: const Icon(Icons.edit_outlined),
+                        onPressed: () async {
+                          await _editQuizQuestion(question);
+                          if (dialogContext.mounted) {
+                            refresh(() => questionsFuture = loadQuestions());
+                          }
+                        },
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('إغلاق'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _openQuiz(String quizId) async {
     try {
       final raw = await supabase.rpc('get_quiz_for_student', params: {'p_quiz_id': quizId});
@@ -1560,6 +1700,14 @@ class _AcademyHomeState extends State<AcademyHome> {
                           subtitle: Text(widget.isTeacher ? 'إدارة الأسئلة' : 'ابدأ الاختبار'),
                           trailing: widget.isTeacher
                             ? Row(mainAxisSize: MainAxisSize.min, children: [
+                                IconButton(
+                                  icon: const Icon(Icons.edit_note_outlined),
+                                  tooltip: 'إدارة أسئلة الاختبار',
+                                  onPressed: () => _manageQuizQuestions(
+                                    quiz['id'] as String,
+                                    quiz['title'] as String? ?? 'اختبار',
+                                  ),
+                                ),
                                 IconButton(
                                   icon: const Icon(Icons.bar_chart_outlined),
                                   tooltip: 'عرض نتائج الطلاب',
