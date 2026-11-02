@@ -46,7 +46,7 @@ begin
   join pg_namespace n on n.oid = p.pronamespace
   where n.nspname = 'private'
     and p.proname = 'issue_course_certificate'
-    and pg_get_function_identity_arguments(p.oid) = 'p_course_id uuid';
+    and p.pronargs = 1;
 
   if v_definition is null or position('1, 32' in v_definition) = 0 then
     raise exception 'FAIL: certificate issuance function is missing the 128-bit code generator';
