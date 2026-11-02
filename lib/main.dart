@@ -81,7 +81,7 @@ class AuthGate extends StatelessWidget {
               return const Scaffold(body: Center(child: CircularProgressIndicator()));
             }
             final role = profile.data?['role'] as String? ?? 'student';
-            return AcademyHome(isTeacher: role == 'teacher' || role == 'admin');
+            return AcademyHome(isTeacher: role == 'teacher' || role == 'admin', role: role);
           },
         );
       },
@@ -300,7 +300,8 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
 
 class AcademyHome extends StatefulWidget {
   final bool isTeacher;
-  const AcademyHome({super.key, required this.isTeacher});
+  final String role;
+  const AcademyHome({super.key, required this.isTeacher, required this.role});
   @override
   State<AcademyHome> createState() => _AcademyHomeState();
 }
@@ -764,20 +765,32 @@ class _AcademyHomeState extends State<AcademyHome> {
     ),
   ]);
 
-  Widget _profilePage() => ListView(padding: const EdgeInsets.all(24), children: [
+  Widget _profilePage() {
+    final user = supabase.auth.currentUser;
+    final metadataName = user?.userMetadata?['display_name'] as String?;
+    final displayName = metadataName?.trim().isNotEmpty == true
+        ? metadataName!.trim()
+        : (user?.email ?? t('مستخدم الأكاديمية', 'Academy user'));
+    final roleLabel = widget.role == 'admin'
+        ? t('حساب مدير', 'Administrator account')
+        : widget.role == 'teacher'
+            ? t('حساب مدرّس', 'Teacher account')
+            : t('حساب طالب', 'Student account');
+    return ListView(padding: const EdgeInsets.all(24), children: [
     _sectionTitle(t('الملف الشخصي', 'Profile')),
     const SizedBox(height: 20),
     const CircleAvatar(radius: 38, backgroundColor: Color(0xFFE8E7FF), child: Icon(Icons.person, color: purple, size: 40)),
     const SizedBox(height: 12),
-    Text(t('متعلم جديد', 'New learner'), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-    Text(t('عضو في أكاديمية تصميم الويب', 'Web Design Academy member'), style: const TextStyle(color: Colors.blueGrey)),
+    Text(displayName, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+    Text(user?.email ?? '', style: const TextStyle(color: Colors.blueGrey)),
     const SizedBox(height: 24),
-    ListTile(leading: const Icon(Icons.verified_user_outlined), title: Text(widget.isTeacher ? t('حساب مدرّس', 'Teacher account') : t('حساب طالب', 'Student account'))),
+    ListTile(leading: const Icon(Icons.verified_user_outlined), title: Text(roleLabel)),
     ListTile(leading: const Icon(Icons.logout), title: Text(t('تسجيل الخروج', 'Sign out')),
       onTap: () async { await supabase.auth.signOut(); }),
     SwitchListTile(title: Text(t('English interface', 'الواجهة العربية')), value: english,
       onChanged: (v) => setState(() => english = v)),
   ]);
+  }
 
   Widget _courseCard(Course course, int index) => InkWell(
     borderRadius: BorderRadius.circular(18),
