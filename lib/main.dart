@@ -205,7 +205,8 @@ class _AuthScreenState extends State<AuthScreen> {
 class LessonPlayerScreen extends StatefulWidget {
   final String title;
   final String videoUrl;
-  const LessonPlayerScreen({super.key, required this.title, required this.videoUrl});
+  final String lessonId;
+  const LessonPlayerScreen({super.key, required this.title, required this.videoUrl, required this.lessonId});
 
   @override
   State<LessonPlayerScreen> createState() => _LessonPlayerScreenState();
@@ -214,6 +215,29 @@ class LessonPlayerScreen extends StatefulWidget {
 class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
   late final VideoPlayerController _controller;
   late final Future<void> _initialize;
+  bool _savingProgress = false;
+  bool _completed = false;
+
+  Future<void> _markCompleted() async {
+    setState(() => _savingProgress = true);
+    try {
+      await supabase.from('lesson_progress').upsert({
+        'lesson_id': widget.lessonId,
+        'student_id': supabase.auth.currentUser!.id,
+        'completed': true,
+        'watched_seconds': _controller.value.position.inSeconds,
+        'updated_at': DateTime.now().toIso8601String(),
+      }, onConflict: 'lesson_id,student_id');
+      if (mounted) setState(() => _completed = true);
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تم حفظ تقدمك في هذا الدرس.')));
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('تعذر حفظ التقدم: ' + error.toString())));
+    } finally {
+      if (mounted) setState(() => _savingProgress = false);
+    }
+  }
 
   @override
   void initState() {
@@ -249,6 +273,12 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
                 child: VideoPlayer(_controller),
               ),
               VideoProgressIndicator(_controller, allowScrubbing: true),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                onPressed: _savingProgress || _completed ? null : _markCompleted,
+                icon: Icon(_completed ? Icons.check_circle : Icons.task_alt),
+                label: Text(_savingProgress ? 'جارٍ حفظ التقدم...' : _completed ? 'تم إكمال الدرس' : 'وضع علامة مكتمل'),
+              ),
               IconButton(
                 iconSize: 42,
                 onPressed: () => setState(() {
@@ -841,6 +871,7 @@ class _AcademyHomeState extends State<AcademyHome> {
                                 builder: (_) => LessonPlayerScreen(
                                   title: lesson['title'] as String? ?? 'مشغل الدرس',
                                   videoUrl: url,
+                                  lessonId: lesson['id'] as String,
                                 ),
                               ));
                             } catch (error) {
