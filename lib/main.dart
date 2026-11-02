@@ -345,7 +345,7 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
   bool _savingProgress = false;
   bool _completed = false;
 
-  Future<void> _saveWatchPosition({bool completed = false}) async {
+  Future<void> _saveWatchPosition({bool completed = false, bool suppressErrors = false}) async {
     if (!widget.allowProgress) return;
     final user = supabase.auth.currentUser;
     if (user == null) return;
@@ -358,7 +358,7 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
         'updated_at': DateTime.now().toIso8601String(),
       }, onConflict: 'lesson_id,student_id');
     } catch (_) {
-      // Playback should not stop because a progress update failed.
+      if (!suppressErrors) rethrow;
     }
   }
 
@@ -415,7 +415,7 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
   @override
   void dispose() {
     if (widget.allowProgress) {
-      unawaited(_saveWatchPosition());
+      unawaited(_saveWatchPosition(suppressErrors: true));
     }
     _controller.dispose();
     super.dispose();
