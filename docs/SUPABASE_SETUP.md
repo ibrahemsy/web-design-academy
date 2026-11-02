@@ -7,7 +7,7 @@
 1. أنشئ مشروعاً من https://supabase.com/dashboard
 2. انسخ Project URL ومفتاح Publishable من إعدادات API.
 3. فعّل Email provider من Authentication → Providers.
-4. اضبط Site URL وRedirect URLs لتشمل رابط النشر المحلي/الإنتاج الذي ستستخدمه.
+4. اضبط Site URL وRedirect URLs. أضف رابط GitHub Pages التالي إلى Redirect URLs حرفياً: `https://ibrahemsy.github.io/web-design-academy/`؛ يستخدمه التطبيق لإعادة المستخدم إلى شاشة الأكاديمية بعد تأكيد البريد أو طلب استعادة كلمة المرور. أضف أيضاً رابط localhost عند التطوير المحلي.
 
 ## 2. تطبيق ملفات قاعدة البيانات
 
