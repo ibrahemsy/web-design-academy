@@ -84,7 +84,7 @@ begin
 
   if v_public_definition is null
      or position('SECURITY DEFINER' in upper(v_public_definition)) = 0
-     or position('SET search_path TO ''''' in v_public_definition) = 0 then
+     or position($needle$SET search_path TO ''$needle$ in v_public_definition) = 0 then
     raise exception 'FAIL: public certificate verification RPC must use SECURITY DEFINER and an empty search_path';
   end if;
   -- Certificate reports are private to the owning teacher or an administrator.
