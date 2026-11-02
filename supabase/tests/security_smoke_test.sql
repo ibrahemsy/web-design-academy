@@ -6,6 +6,7 @@ declare
   v_rls_enabled boolean;
   v_definition text;
   v_public_definition text;
+  v_report_definition text;
   v_bucket_ok boolean;
   v_storage_policy_count integer;
 begin
@@ -99,6 +100,19 @@ begin
     raise exception 'FAIL: private certificate report implementation must not be directly executable';
   end if;
 
+  select pg_get_functiondef(p.oid) into v_report_definition
+  from pg_proc p
+  join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'public'
+    and p.proname = 'get_course_certificate_report'
+    and p.pronargs = 1;
+
+  if v_report_definition is null
+     or position('SECURITY DEFINER' in upper(v_report_definition)) = 0
+     or position($needle$SET search_path TO ''$needle$ in v_report_definition) = 0 then
+    raise exception 'FAIL: public certificate report RPC must use SECURITY DEFINER and an empty search_path';
+  end if;
+
   -- Confirm that the installed issuance function uses a 32-hex-character
   -- cryptographically random suffix (122 random bits), rather than the former 12-character UUID suffix.
   select pg_get_functiondef(p.oid) into v_definition
@@ -112,7 +126,7 @@ begin
     raise exception 'FAIL: certificate issuance function is missing the 122-bit UUIDv4 code generator';
   end if;
 
-  raise notice 'PASS: private video bucket, storage policies, certificate RLS, direct grants, RPC roles, and 122-bit UUIDv4 code generation';
+  raise notice 'PASS: private video bucket, storage policies, certificate RLS, direct grants, RPC roles, hardened public wrappers, and 122-bit UUIDv4 code generation';
 end;
 $audit$;
 
