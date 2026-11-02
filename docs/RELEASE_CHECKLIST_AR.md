@@ -7,8 +7,9 @@
 - [ ] التأكد من أن عنوان الموقع هو: https://ibrahemsy.github.io/web-design-academy/
 - [ ] التأكد من نجاح مهمتي build و deploy في GitHub Actions.
 - [ ] التأكد من أن `flutter analyze` ينتهي دون أخطاء.
-- [ ] التأكد من نجاح `flutter test` لاختبارات التنسيق والأدوار وتسلسل تقدم الدروس وحساب نسب الإنجاز.
+- [ ] التأكد من نجاح `flutter test` لاختبارات التنسيق والأدوار وتسلسل تقدم الدروس وحساب نسب الإنجاز والتحقق من كلمة المرور وروابط إعادة التوجيه.
 - [ ] تشغيل `python3 scripts/verify_repository.py` والتأكد من نجاح جميع ثوابت الإصدار.
+- [ ] التأكد من نجاح اختبار HTTP بعد النشر `scripts/smoke_test_deployment.py` واختبار تشغيل Flutter داخل Chromium `scripts/smoke_test_browser.mjs`.
 - [ ] التأكد من عدم وجود مفاتيح Supabase السرية أو service_role في ملفات Flutter أو GitHub.
 - [ ] التحقق من أن عنوان Supabase ومفتاح Publishable يعودان إلى المشروع المقصود.
 
@@ -65,7 +66,7 @@
 - [ ] طباعة الشهادة A4 أفقية من Chrome وEdge.
 
 ## 7. قاعدة البيانات والأمان
-- [ ] مراجعة جميع migrations من 0001 إلى 0028 ومطابقة حالة المشروع الفعلية قبل تطبيق أي ملف.
+- [ ] مراجعة جميع migrations من 0001 إلى 0029 ومطابقة حالة المشروع الفعلية قبل تطبيق أي ملف.
 - [ ] لا تعِد تشغيل migrations على مشروع قائم دون فحص سجل migrations.
 - [ ] تشغيل Supabase Security Advisor وPerformance Advisor ومعالجة التحذيرات ذات الصلة.
 - [ ] تشغيل `supabase/tests/security_smoke_test.sql` والتأكد من نجاح فحص صلاحيات Data API الافتراضية والحالية، وسياسات الملف الشخصي والدورات والتقدم والتخزين وحارس تغيير الأدوار والشهادات.
