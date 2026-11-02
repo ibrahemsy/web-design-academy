@@ -904,6 +904,7 @@ class _AcademyHomeState extends State<AcademyHome> {
           title: Text('أسئلة: $quizTitle'),
           content: SizedBox(
             width: 560,
+            height: 360,
             child: FutureBuilder<List<Map<String, dynamic>>>(
               future: questionsFuture,
               builder: (context, snapshot) {
@@ -1178,11 +1179,13 @@ class _AcademyHomeState extends State<AcademyHome> {
             width: 560,
             child: rows.isEmpty
                 ? const Text('لم يلتحق أي طالب بهذه الدورة بعد.')
-                : ListView.separated(
-                    shrinkWrap: true,
-                    itemCount: rows.length,
-                    separatorBuilder: (_, __) => const Divider(),
-                    itemBuilder: (context, index) {
+                : SizedBox(
+                    height: 360,
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: rows.length,
+                      separatorBuilder: (_, __) => const Divider(),
+                      itemBuilder: (context, index) {
                       final row = rows[index];
                       final completed = (row['completed_lessons'] as num?)?.toInt() ?? 0;
                       final total = (row['total_lessons'] as num?)?.toInt() ?? 0;
@@ -1206,7 +1209,8 @@ class _AcademyHomeState extends State<AcademyHome> {
                         ),
                         trailing: Text('${(progress * 100).round()}%'),
                       );
-                    },
+                      },
+                    ),
                   ),
           ),
           actions: [
