@@ -459,7 +459,7 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
                 onPressed: () {
                   if (_controller.value.isPlaying) {
                     _controller.pause();
-                    unawaited(_saveWatchPosition());
+                    unawaited(_saveWatchPosition(suppressErrors: true));
                   } else {
                     _controller.play();
                   }
