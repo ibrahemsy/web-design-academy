@@ -1,5 +1,7 @@
 import 'dart:async';
-import 'dart:html' as html;
+import 'dart:js_interop';
+
+import 'package:web/web.dart' as web;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -2107,12 +2109,12 @@ class _AcademyHomeState extends State<AcademyHome> {
           ? '—'
           : '${issuedAt.toLocal().year}-${issuedAt.toLocal().month.toString().padLeft(2, '0')}-${issuedAt.toLocal().day.toString().padLeft(2, '0')}',
     );
-    final printWindow = html.window.open('', '_blank');
+    final printWindow = web.window.open('', '_blank');
     if (printWindow == null) {
       _message('اسمح بالنوافذ المنبثقة لتنزيل الشهادة بصيغة PDF.');
       return;
     }
-    printWindow.document?.write('''
+    printWindow.document.write('''.toJS
 <!doctype html>
 <html lang="ar" dir="rtl">
 <head>
@@ -2164,7 +2166,9 @@ class _AcademyHomeState extends State<AcademyHome> {
 </body>
 </html>
 ''');
-    printWindow.document?.close();
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
   }
 
   Future<void> _issueCertificate(Course course) async {
