@@ -2243,7 +2243,6 @@ class _AcademyHomeState extends State<AcademyHome> {
   </section>
   <div class="footer">يمكن التحقق من صحة هذه الشهادة باستخدام رمز التحقق من داخل الأكاديمية.</div>
 </main>
-<script>window.onload = function () { window.focus(); window.print(); };</script>
 </body>
 </html>
 '''.toJS);
