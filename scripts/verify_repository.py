@@ -11,7 +11,11 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 MIGRATIONS = ROOT / "supabase" / "migrations"
 TEST_SQL = ROOT / "supabase" / "tests" / "security_smoke_test.sql"
-DART_TEST = ROOT / "test" / "utils" / "formatters_test.dart"
+DART_TESTS = (
+    ROOT / "test" / "utils" / "formatters_test.dart",
+    ROOT / "test" / "utils" / "roles_test.dart",
+    ROOT / "test" / "utils" / "progress_test.dart",
+)
 WORKFLOW = ROOT / ".github" / "workflows" / "deploy.yml"
 
 def fail(message: str) -> None:
@@ -70,8 +74,9 @@ for fragment in required_fragments:
 
 if not TEST_SQL.exists():
     fail("Supabase security smoke test is missing")
-if not DART_TEST.exists():
-    fail("CSV and HTML formatter unit tests are missing")
+for test_file in DART_TESTS:
+    if not test_file.exists():
+        fail(f"Required utility unit test is missing: {test_file.relative_to(ROOT)}")
 if not WORKFLOW.exists() or "flutter test" not in WORKFLOW.read_text(encoding="utf-8"):
     fail("GitHub Actions must run Flutter unit tests")
 smoke = TEST_SQL.read_text(encoding="utf-8")
@@ -96,6 +101,6 @@ for fragment in (
 
 print(f"PASS: {len(files)} migrations are sequential (0001-{max(versions):04d}).")
 print("PASS: certificate issuance uses the expected UUIDv4 generator and hardened search_path.")
-print("PASS: Flutter formatter unit tests are present and included in CI.")
+print("PASS: formatter, role authorization helper, and lesson-progress serialization unit tests are present and included in CI.")
 print("PASS: Supabase certificate security smoke test covers RLS, grants, RPC roles, private implementation isolation, and code generation.")
 print("NOTE: These checks are static. Run security_smoke_test.sql on the target Supabase database before launch.")
