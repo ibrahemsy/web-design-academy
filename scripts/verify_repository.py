@@ -52,6 +52,12 @@ if not verifier_migration.exists():
 verifier_sql = verifier_migration.read_text(encoding="utf-8")
 if "revoke all on function private.verify_course_certificate(text)" not in verifier_sql.lower():
     fail("Migration 0027 must revoke direct access to the private certificate verifier")
+report_wrapper_migration = MIGRATIONS / "0028_harden_public_certificate_report_wrapper.sql"
+if not report_wrapper_migration.exists():
+    fail("Hardened public certificate report wrapper migration 0028 is missing")
+report_wrapper_sql = report_wrapper_migration.read_text(encoding="utf-8")
+if "security definer" not in report_wrapper_sql.lower() or "set search_path = ''" not in report_wrapper_sql.lower():
+    fail("Migration 0028 must harden the public report wrapper and its search_path")
 required_fragments = (
     "security definer",
     "set search_path = ''",
