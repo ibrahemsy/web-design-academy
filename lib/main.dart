@@ -311,11 +311,41 @@ class _AcademyHomeState extends State<AcademyHome> {
   String query = '';
   List<Course> remoteCourses = [];
   bool coursesLoading = true;
+  late Future<List<Course>> learningCoursesFuture;
 
   @override
   void initState() {
     super.initState();
     _loadCourses();
+    learningCoursesFuture = _loadLearningCourses();
+  }
+
+  Future<List<Course>> _loadLearningCourses() async {
+    final user = supabase.auth.currentUser;
+    if (user == null) return [];
+    final enrollments = await supabase.from('enrollments')
+        .select('course_id').eq('student_id', user.id);
+    final ids = (enrollments as List)
+        .map((row) => row['course_id'] as String?)
+        .whereType<String>().toList();
+    if (ids.isEmpty) return [];
+    final rows = await supabase.from('courses')
+        .select('id,title,description,level,status')
+        .inFilter('id', ids)
+        .order('created_at', ascending: false);
+    return (rows as List).map((row) {
+      final level = row['level'] as String? ?? 'beginner';
+      return Course(
+        row['title'] as String? ?? '',
+        'دورة تعليمية',
+        row['description'] as String? ?? '',
+        'أكاديمية الويب',
+        level == 'advanced' ? 'متقدم' : level == 'intermediate' ? 'متوسط' : 'مبتدئ',
+        Icons.web_rounded, purple, 0,
+        id: row['id'] as String?,
+        status: row['status'] as String? ?? 'published',
+      );
+    }).toList();
   }
 
   Future<void> _loadCourses() async {
@@ -682,13 +712,50 @@ class _AcademyHomeState extends State<AcademyHome> {
   Widget _learningPage() => ListView(padding: const EdgeInsets.all(24), children: [
     _sectionTitle(t('متابعة التعلم', 'Continue learning')),
     const SizedBox(height: 8),
-    Text(t('تابع من حيث توقفت.', 'Pick up where you left off.'), style: const TextStyle(color: Colors.blueGrey)),
+    Text(t('الدورات التي التحقت بها وحالة تعلمك.', 'Courses you joined and your learning progress.'), style: const TextStyle(color: Colors.blueGrey)),
     const SizedBox(height: 18),
-    const Text('ستظهر هنا الدورات التي تسجل فيها بعد تفعيل التسجيل.'),
-    const SizedBox(height: 14),
-    _sectionTitle(t('الدروس الأخيرة', 'Recent lessons')),
-    _lessonTile('مقدمة إلى عالم الويب', 'أساسيات تصميم الويب', Icons.play_circle_fill),
-    _lessonTile('بنية مستند HTML', 'HTML من الصفر', Icons.play_circle_fill),
+    FutureBuilder<List<Course>>(
+      future: learningCoursesFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: Padding(
+            padding: EdgeInsets.all(24), child: CircularProgressIndicator()));
+        }
+        if (snapshot.hasError) {
+          return const Text('تعذر تحميل دوراتك حالياً. حاول تحديث الصفحة.');
+        }
+        final enrolled = snapshot.data ?? [];
+        if (enrolled.isEmpty) {
+          return Card(
+            elevation: 0,
+            color: const Color(0xFFF7F7FC),
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(children: [
+                const Icon(Icons.menu_book_outlined, size: 42, color: purple),
+                const SizedBox(height: 10),
+                Text(t('لم تلتحق بأي دورة بعد.', 'You have not joined a course yet.'),
+                  style: const TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                Text(t('استكشف الدورات المنشورة واختر ما يناسبك.',
+                  'Explore published courses and choose one to start.')),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: () => setState(() => selected = 1),
+                  icon: const Icon(Icons.explore_outlined),
+                  label: Text(t('استكشاف الدورات', 'Explore courses')),
+                ),
+              ]),
+            ),
+          );
+        }
+        return Column(children: enrolled.asMap().entries.map((entry) =>
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: _courseCard(entry.value, entry.key),
+          )).toList());
+      },
+    ),
   ]);
 
   Widget _profilePage() => ListView(padding: const EdgeInsets.all(24), children: [
@@ -817,6 +884,11 @@ class _AcademyHomeState extends State<AcademyHome> {
                                 'course_id': course.id,
                                 'student_id': supabase.auth.currentUser!.id,
                               });
+                              if (mounted) {
+                                setState(() {
+                                  learningCoursesFuture = _loadLearningCourses();
+                                });
+                              }
                               refreshSheet(() {
                                 enrollmentFuture = Future.value(true);
                                 lessonsFuture = supabase.from('lessons')
