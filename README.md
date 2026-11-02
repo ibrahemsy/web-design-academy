@@ -84,7 +84,7 @@ flutter build web --release \
 - جلب الحزم.
 - بناء Flutter Web.
 - نشر `build/web` على GitHub Pages.
-- اختبار HTTP بعد النشر للتحقق من صفحة الأكاديمية وملفات تشغيل Flutter الأساسية.
+- اختبار HTTP بعد النشر للتحقق من صفحة الأكاديمية وملفات تشغيل Flutter الأساسية، ثم تشغيل Chromium للتأكد من تهيئة عارض Flutter فعلياً.
 
 ملف سير العمل: `.github/workflows/deploy.yml`.
 
