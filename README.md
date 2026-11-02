@@ -75,7 +75,7 @@ flutter build web --release \
 
 ## قاعدة البيانات
 
-ملفات التغييرات المتسلسلة موجودة في `supabase/migrations/` من `0001` إلى `0026`. راجع [دليل إعداد Supabase](docs/SUPABASE_SETUP.md) قبل تطبيقها على مشروع جديد.
+ملفات التغييرات المتسلسلة موجودة في `supabase/migrations/` من `0001` إلى `0027`. راجع [دليل إعداد Supabase](docs/SUPABASE_SETUP.md) قبل تطبيقها على مشروع جديد.
 
 ## النشر
 
@@ -87,7 +87,7 @@ flutter build web --release \
 
 ملف سير العمل: `.github/workflows/deploy.yml`.
 
-يتضمن CI أيضاً فحصاً ثابتاً لترتيب ترحيلات Supabase وحماية مسارات الشهادات قبل التحليل والبناء: `python3 scripts/verify_repository.py`. هذا الفحص لا يغني عن تشغيل اختبار SQL على قاعدة البيانات الفعلية.
+يتضمن CI أيضاً فحصاً ثابتاً لترتيب ترحيلات Supabase وحماية مسارات الشهادات قبل الاختبارات والتحليل والبناء: `python3 scripts/verify_repository.py`، ثم يشغّل `flutter test` لاختبارات تنسيق CSV وحماية نصوص الشهادات من HTML injection. هذا الفحص لا يغني عن تشغيل اختبار SQL على قاعدة البيانات الفعلية.
 
 ## التحقق قبل الإطلاق
 
