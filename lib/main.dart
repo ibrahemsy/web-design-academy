@@ -1144,10 +1144,9 @@ class _AcademyHomeState extends State<AcademyHome> {
     final user = supabase.auth.currentUser;
     if (user == null) return;
     try {
-      final rows = await supabase.from('quiz_attempts')
-        .select('id,score,submitted_at,quizzes(title)')
-        .eq('student_id', user.id)
-        .order('submitted_at', ascending: false);
+      final raw = await supabase.rpc('get_my_quiz_history');
+      final rows = (raw as List)
+          .map((row) => Map<String, dynamic>.from(row as Map)).toList();
       if (!mounted) return;
       await showDialog<void>(
         context: context,
@@ -1163,7 +1162,6 @@ class _AcademyHomeState extends State<AcademyHome> {
                   separatorBuilder: (_, __) => const Divider(),
                   itemBuilder: (context, index) {
                     final row = rows[index];
-                    final quiz = row['quizzes'] is Map ? row['quizzes'] as Map : const {};
                     final score = (row['score'] as num?)?.toStringAsFixed(2) ?? '—';
                     final date = DateTime.tryParse(row['submitted_at']?.toString() ?? '');
                     return ListTile(
@@ -1172,7 +1170,7 @@ class _AcademyHomeState extends State<AcademyHome> {
                         backgroundColor: const Color(0xFFE8E7FF),
                         child: Text(score == '—' ? '—' : '${(double.tryParse(score) ?? 0).round()}%'),
                       ),
-                      title: Text(quiz['title']?.toString() ?? 'اختبار'),
+                      title: Text(row['quiz_title']?.toString() ?? 'اختبار'),
                       subtitle: Text(date == null ? 'تاريخ غير متاح' : date.toLocal().toString().substring(0, 16)),
                       trailing: Text('$score%', style: const TextStyle(fontWeight: FontWeight.bold)),
                     );
