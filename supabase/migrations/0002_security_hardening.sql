@@ -53,5 +53,5 @@ using (bucket_id = 'course-videos' and (
  or private.is_admin()));
 revoke all on function public.handle_new_user() from public, anon, authenticated;
 revoke all on function public.guard_profile_role() from public, anon, authenticated;
-drop function public.is_admin();
-drop function public.is_teacher_or_admin();
+drop function if exists public.is_admin();
+drop function if exists public.is_teacher_or_admin();
