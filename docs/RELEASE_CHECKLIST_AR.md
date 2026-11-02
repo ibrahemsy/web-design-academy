@@ -7,7 +7,7 @@
 - [ ] التأكد من أن عنوان الموقع هو: https://ibrahemsy.github.io/web-design-academy/
 - [ ] التأكد من نجاح مهمتي build و deploy في GitHub Actions.
 - [ ] التأكد من أن `flutter analyze` ينتهي دون أخطاء.
-- [ ] التأكد من نجاح `flutter test` لاختبارات التنسيق والأدوار وتسلسل تقدم الدروس.
+- [ ] التأكد من نجاح `flutter test` لاختبارات التنسيق والأدوار وتسلسل تقدم الدروس وحساب نسب الإنجاز.
 - [ ] تشغيل `python3 scripts/verify_repository.py` والتأكد من نجاح جميع ثوابت الإصدار.
 - [ ] التأكد من عدم وجود مفاتيح Supabase السرية أو service_role في ملفات Flutter أو GitHub.
 - [ ] التحقق من أن عنوان Supabase ومفتاح Publishable يعودان إلى المشروع المقصود.
