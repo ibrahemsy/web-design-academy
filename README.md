@@ -115,4 +115,4 @@ flutter build web --release \
 
 ## اختبارات الأمان
 
-بعد تطبيق ترحيلات Supabase من `0001` إلى `0028`، شغّل [اختبار الأمان للقراءة فقط](supabase/tests/security_smoke_test.sql) من SQL Editor للتحقق من صلاحيات الشهادات وRLS.
+بعد تطبيق ترحيلات Supabase من `0001` إلى `0029`، شغّل [اختبار الأمان للقراءة فقط](supabase/tests/security_smoke_test.sql) من SQL Editor للتحقق من صلاحيات الشهادات وRLS.
