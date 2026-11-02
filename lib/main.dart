@@ -368,7 +368,28 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
   void initState() {
     super.initState();
     _controller = VideoPlayerController.networkUrl(Uri.parse(widget.videoUrl));
-    _initialize = _controller.initialize();
+    _initialize = _initializePlayer();
+  }
+
+  Future<void> _initializePlayer() async {
+    await _controller.initialize();
+    if (!widget.allowProgress) return;
+    try {
+      final row = await supabase.from('lesson_progress')
+          .select('completed,watched_seconds')
+          .eq('lesson_id', widget.lessonId)
+          .eq('student_id', supabase.auth.currentUser!.id)
+          .maybeSingle();
+      if (row == null) return;
+      final seconds = (row['watched_seconds'] as num?)?.toInt() ?? 0;
+      final duration = _controller.value.duration.inSeconds;
+      if (seconds > 0 && seconds < duration && row['completed'] != true) {
+        await _controller.seekTo(Duration(seconds: seconds));
+      }
+      _completed = row['completed'] == true;
+    } catch (_) {
+      // Video playback remains available even if progress history cannot load.
+    }
   }
 
   @override
@@ -467,16 +488,37 @@ class _AcademyHomeState extends State<AcademyHome> {
         .select('id,title,description,level,status')
         .inFilter('id', ids)
         .order('created_at', ascending: false);
+    final lessonRows = await supabase.from('lessons')
+        .select('id,course_id').inFilter('course_id', ids);
+    final completedRows = await supabase.from('lesson_progress')
+        .select('lesson_id').eq('student_id', user.id).eq('completed', true);
+    final completedIds = (completedRows as List)
+        .map((row) => row['lesson_id']?.toString()).whereType<String>().toSet();
+    final lessonCounts = <String, int>{};
+    final completedCounts = <String, int>{};
+    for (final lesson in lessonRows as List) {
+      final courseId = lesson['course_id']?.toString();
+      final lessonId = lesson['id']?.toString();
+      if (courseId == null || lessonId == null) continue;
+      lessonCounts[courseId] = (lessonCounts[courseId] ?? 0) + 1;
+      if (completedIds.contains(lessonId)) {
+        completedCounts[courseId] = (completedCounts[courseId] ?? 0) + 1;
+      }
+    }
     return (rows as List).map((row) {
       final level = row['level'] as String? ?? 'beginner';
+      final id = row['id'] as String?;
+      final total = id == null ? 0 : (lessonCounts[id] ?? 0);
+      final completed = id == null ? 0 : (completedCounts[id] ?? 0);
+      final progress = total == 0 ? 0.0 : (completed / total).clamp(0.0, 1.0).toDouble();
       return Course(
         row['title'] as String? ?? '',
         'دورة تعليمية',
         row['description'] as String? ?? '',
-        'أكاديمية الويب',
+        '$total درس',
         level == 'advanced' ? 'متقدم' : level == 'intermediate' ? 'متوسط' : 'مبتدئ',
-        Icons.web_rounded, purple, 0,
-        id: row['id'] as String?,
+        Icons.web_rounded, purple, progress,
+        id: id,
         status: row['status'] as String? ?? 'published',
       );
     }).toList();
