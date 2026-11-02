@@ -96,8 +96,13 @@ main_source = MAIN_DART.read_text(encoding="utf-8")
 for fragment in ("utils/roles.dart", "utils/progress.dart", "utils/course_progress.dart", "calculateCourseProgress", "certificatesFuture = _loadMyCertificates()", "isSupportedAcademyRole", "canManageAcademyCourses", "buildLessonProgressPayload"):
     if fragment not in main_source:
         fail(f"Application is not using the tested helper: {fragment}")
-if not WORKFLOW.exists() or "flutter test" not in WORKFLOW.read_text(encoding="utf-8"):
+if not WORKFLOW.exists():
+    fail("GitHub Actions workflow is missing")
+workflow_text = WORKFLOW.read_text(encoding="utf-8")
+if "flutter test" not in workflow_text:
     fail("GitHub Actions must run Flutter unit tests")
+if "Smoke test deployed website" not in workflow_text or "python3 scripts/smoke_test_deployment.py" not in workflow_text:
+    fail("GitHub Pages deployment must run the deployed website HTTP smoke test")
 smoke = TEST_SQL.read_text(encoding="utf-8")
 for fragment in (
     "relrowsecurity",
@@ -125,6 +130,7 @@ for fragment in (
 
 print(f"PASS: {len(files)} migrations are sequential (0001-{max(versions):04d}).")
 print("PASS: certificate issuance uses the expected UUIDv4 generator and hardened search_path.")
-print("PASS: formatter, role authorization helper, and lesson-progress serialization unit tests are present and included in CI.")
+print("PASS: formatter, role authorization, lesson-progress serialization, and course completion unit tests are present and included in CI.")
+print("PASS: GitHub Pages deployment includes a post-deployment HTTP smoke test for Flutter runtime assets.")
 print("PASS: Supabase security smoke test covers profile/role/progress policies, private video storage, certificate RLS, RPC grants, and code generation.")
 print("NOTE: These checks are static. Run security_smoke_test.sql on the target Supabase database before launch.")
