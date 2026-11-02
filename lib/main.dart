@@ -26,10 +26,27 @@ const supabasePublishableKey = String.fromEnvironment(
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Supabase.initialize(url: supabaseUrl, publishableKey: supabasePublishableKey);
+  // Subscribe immediately after initialization: a web recovery callback can
+  // be exchanged before the first Flutter frame and StreamBuilder subscribes.
+  supabase.auth.onAuthStateChange.listen(
+    (state) {
+      if (state.event == AuthChangeEvent.passwordRecovery) {
+        passwordRecoveryPending = true;
+      } else if (state.event == AuthChangeEvent.userUpdated ||
+          state.event == AuthChangeEvent.signedIn ||
+          state.event == AuthChangeEvent.signedOut) {
+        passwordRecoveryPending = false;
+      }
+    },
+    onError: (Object error, StackTrace stackTrace) {
+      debugPrint('Supabase auth event stream error: $error');
+    },
+  );
   runApp(const WebDesignAcademy());
 }
 
 final supabase = Supabase.instance.client;
+bool passwordRecoveryPending = false;
 
 const ink = Color(0xFF17243B);
 const navy = Color(0xFF101B32);
@@ -105,7 +122,8 @@ class _AuthGateState extends State<AuthGate> {
     return StreamBuilder<AuthState>(
       stream: supabase.auth.onAuthStateChange,
       builder: (context, snapshot) {
-        if (snapshot.data?.event == AuthChangeEvent.passwordRecovery) {
+        if (passwordRecoveryPending ||
+            snapshot.data?.event == AuthChangeEvent.passwordRecovery) {
           return const PasswordRecoveryScreen();
         }
         final user = supabase.auth.currentUser;
