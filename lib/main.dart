@@ -438,12 +438,15 @@ class _AcademyHomeState extends State<AcademyHome> {
 
 
   Future<void> _createQuiz() async {
-    final ownedCourses = remoteCourses.where((c) => c.id != null && (c.status == 'draft' || c.status == 'published')).toList();
+    final currentUser = supabase.auth.currentUser;
+    if (currentUser == null) return;
+    final ownedCourses = await supabase.from('courses')
+      .select('id,title').eq('teacher_id', currentUser.id).order('created_at', ascending: false);
     if (ownedCourses.isEmpty) {
       _message('أنشئ دورة أولاً قبل إنشاء اختبار.');
       return;
     }
-    String? courseId = ownedCourses.first.id;
+    String? courseId = ownedCourses.first['id'] as String?;
     final title = TextEditingController();
     final prompt = TextEditingController();
     final options = List.generate(4, (_) => TextEditingController());
@@ -460,7 +463,7 @@ class _AcademyHomeState extends State<AcademyHome> {
               DropdownButtonFormField<String>(
                 value: courseId,
                 decoration: const InputDecoration(labelText: 'الدورة'),
-                items: ownedCourses.map((c) => DropdownMenuItem(value: c.id, child: Text(c.title, overflow: TextOverflow.ellipsis))).toList(),
+                items: ownedCourses.map((c) => DropdownMenuItem<String>(value: c['id'] as String, child: Text(c['title'] as String, overflow: TextOverflow.ellipsis))).toList(),
                 onChanged: saving ? null : (v) => refresh(() => courseId = v),
               ),
               TextField(controller: title, decoration: const InputDecoration(labelText: 'عنوان الاختبار')),
