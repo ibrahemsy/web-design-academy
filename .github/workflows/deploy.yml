@@ -57,7 +57,19 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
-      - name: Smoke test deployed website
+      - name: Smoke test deployed website assets
         env:
           DEPLOYED_URL: ${{ steps.deployment.outputs.page_url }}
         run: python3 scripts/smoke_test_deployment.py
+      - name: Set up Node.js for browser smoke test
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Playwright
+        run: npm install --no-save playwright@1.56.1
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Smoke test deployed website in Chromium
+        env:
+          DEPLOYED_URL: ${{ steps.deployment.outputs.page_url }}
+        run: node scripts/smoke_test_browser.mjs
