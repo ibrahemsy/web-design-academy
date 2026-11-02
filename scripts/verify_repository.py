@@ -118,7 +118,7 @@ for dependency in ("supabase_flutter: 2.18.3", "file_picker: 8.3.7", "video_play
     if dependency not in pubspec_text:
         fail(f"Direct Flutter dependency is not pinned to the tested version: {dependency}")
 main_source = MAIN_DART.read_text(encoding="utf-8")
-for fragment in ("utils/roles.dart", "utils/progress.dart", "utils/course_progress.dart", "utils/auth_validation.dart", "isValidPasswordPair", "buildAcademyRedirectUrl", "AuthChangeEvent.passwordRecovery", "emailRedirectTo: academyRedirectUrl", "redirectTo: academyRedirectUrl", "PasswordRecoveryScreen", "calculateCourseProgress", "certificatesFuture = _loadMyCertificates()", "isSupportedAcademyRole", "canManageAcademyCourses", "buildLessonProgressPayload"):
+for fragment in ("utils/roles.dart", "utils/progress.dart", "utils/course_progress.dart", "utils/auth_validation.dart", "isValidPasswordPair", "buildAcademyRedirectUrl", "AuthChangeEvent.passwordRecovery", "passwordRecoveryPending", "supabase.auth.onAuthStateChange.listen", "emailRedirectTo: academyRedirectUrl", "redirectTo: academyRedirectUrl", "PasswordRecoveryScreen", "calculateCourseProgress", "certificatesFuture = _loadMyCertificates()", "isSupportedAcademyRole", "canManageAcademyCourses", "buildLessonProgressPayload"):
     if fragment not in main_source:
         fail(f"Application is not using the tested helper: {fragment}")
 if not WORKFLOW.exists():
