@@ -578,6 +578,7 @@ class _AcademyHomeState extends State<AcademyHome> {
   late Future<Map<String, int>> dashboardStatsFuture;
   late Future<List<Map<String, dynamic>>> usersFuture;
   String usersQuery = '';
+  final Map<String, Future<Map<String, int>>> courseSummaryFutures = {};
 
   @override
   void initState() {
@@ -2131,7 +2132,11 @@ class _AcademyHomeState extends State<AcademyHome> {
 
   Widget _dashboard() => ListView(padding: const EdgeInsets.all(24), children: [
     if (!widget.isTeacher) _hero(),
-    if (widget.isTeacher) _teacherPanel(),
+    if (widget.isTeacher) ...[
+      _teacherPanel(),
+      const SizedBox(height: 18),
+      _teachingOverview(),
+    ],
     const SizedBox(height: 26),
     Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
       Text(t('دورات مقترحة لك', 'Recommended courses'), style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w800, color: ink)),
@@ -2178,6 +2183,154 @@ class _AcademyHomeState extends State<AcademyHome> {
         decoration: BoxDecoration(color: Colors.white.withValues(alpha: .10), borderRadius: BorderRadius.circular(30)),
         child: const Icon(Icons.web_rounded, color: Colors.white, size: 76)),
     ])),
+  );
+
+  Future<List<Map<String, dynamic>>> _loadTeachingCourses() async {
+    final user = supabase.auth.currentUser;
+    if (user == null) return [];
+    var request = supabase.from('courses').select('id,title,status,teacher_id');
+    if (widget.role != 'admin') request = request.eq('teacher_id', user.id);
+    final rows = await request.order('created_at', ascending: false);
+    return (rows as List).map((row) => Map<String, dynamic>.from(row)).toList();
+  }
+
+  Future<Map<String, int>> _loadTeachingCourseSummary(String courseId) async {
+    final results = await Future.wait([
+      supabase.rpc('get_course_students', params: {'p_course_id': courseId}),
+      supabase.rpc('get_course_certificate_report', params: {'p_course_id': courseId}),
+    ]);
+    final students = (results[0] as List)
+        .map((row) => Map<String, dynamic>.from(row as Map)).toList();
+    final certificates = (results[1] as List)
+        .map((row) => Map<String, dynamic>.from(row as Map)).toList();
+    final issued = certificates.where((row) => row['certificate_issued'] == true).length;
+    var completed = 0;
+    var total = 0;
+    for (final student in students) {
+      completed += (student['completed_lessons'] as num?)?.toInt() ?? 0;
+      total += (student['total_lessons'] as num?)?.toInt() ?? 0;
+    }
+    final progress = total == 0 ? 0 : (completed * 100 / total).round();
+    return {
+      'students': students.length,
+      'issued': issued,
+      'pending': students.length - issued,
+      'progress': progress,
+    };
+  }
+
+  Widget _teachingOverview() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Row(
+        children: [
+          Expanded(child: _sectionTitle(widget.role == 'admin' ? 'نظرة عامة على الدورات' : 'متابعة دوراتي')),
+          IconButton(
+            tooltip: 'تحديث التقارير',
+            onPressed: () => setState(() {
+              courseSummaryFutures.clear();
+            }),
+            icon: const Icon(Icons.refresh),
+          ),
+        ],
+      ),
+      const SizedBox(height: 8),
+      const Text(
+        'ملخص التسجيلات والتقدم والشهادات لكل دورة. تظهر للمدرّس دوراته فقط.',
+        style: TextStyle(color: Colors.blueGrey),
+      ),
+      const SizedBox(height: 12),
+      FutureBuilder<List<Map<String, dynamic>>>(
+        future: _loadTeachingCourses(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: Padding(
+              padding: EdgeInsets.all(18), child: CircularProgressIndicator()));
+          }
+          if (snapshot.hasError) {
+            return const Text('تعذر تحميل ملخص الدورات. تحقق من صلاحيات الحساب والاتصال.');
+          }
+          final courses = snapshot.data ?? [];
+          if (courses.isEmpty) {
+            return const Card(
+              elevation: 0,
+              child: Padding(
+                padding: EdgeInsets.all(18),
+                child: Text('لا توجد دورات مرتبطة بهذا الحساب بعد. أنشئ دورة للبدء.'),
+              ),
+            );
+          }
+          return Column(
+            children: courses.map((course) {
+              final id = course['id']?.toString() ?? '';
+              final title = course['title']?.toString() ?? 'دورة بدون عنوان';
+              final status = course['status']?.toString() ?? 'draft';
+              final future = courseSummaryFutures.putIfAbsent(
+                id, () => _loadTeachingCourseSummary(id));
+              return Card(
+                elevation: 0,
+                color: Colors.white,
+                margin: const EdgeInsets.only(bottom: 10),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(child: Text(title,
+                            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16))),
+                          Chip(
+                            label: Text(status == 'published' ? 'منشورة'
+                              : status == 'archived' ? 'مؤرشفة' : 'مسودة'),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      FutureBuilder<Map<String, int>>(
+                        future: future,
+                        builder: (context, summary) {
+                          if (summary.connectionState == ConnectionState.waiting) {
+                            return const LinearProgressIndicator();
+                          }
+                          if (summary.hasError) {
+                            return const Text('تعذر تحميل مؤشرات هذه الدورة.');
+                          }
+                          final data = summary.data ?? const <String, int>{};
+                          return Wrap(spacing: 8, runSpacing: 8, children: [
+                            Chip(avatar: const Icon(Icons.people_outline, size: 17),
+                              label: Text('الطلاب: ${data['students'] ?? 0}')),
+                            Chip(avatar: const Icon(Icons.trending_up, size: 17),
+                              label: Text('متوسط الإنجاز: ${data['progress'] ?? 0}%')),
+                            Chip(avatar: const Icon(Icons.verified_outlined, size: 17),
+                              label: Text('الشهادات: ${data['issued'] ?? 0}')),
+                            Chip(avatar: const Icon(Icons.hourglass_empty, size: 17),
+                              label: Text('قيد الإكمال: ${data['pending'] ?? 0}')),
+                          ]);
+                        },
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(spacing: 8, runSpacing: 4, children: [
+                        TextButton.icon(
+                          onPressed: () => _showCourseStudents(id, title),
+                          icon: const Icon(Icons.groups_outlined),
+                          label: const Text('الطلاب والتقدم'),
+                        ),
+                        TextButton.icon(
+                          onPressed: () => _showCourseCertificates(id, title),
+                          icon: const Icon(Icons.workspace_premium_outlined),
+                          label: const Text('تقرير الشهادات'),
+                        ),
+                      ]),
+                    ],
+                  ),
+                ),
+              );
+            }).toList(),
+          );
+        },
+      ),
+    ],
   );
 
   Widget _teacherPanel() => Container(padding: const EdgeInsets.all(24),
