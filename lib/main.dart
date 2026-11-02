@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:video_player/video_player.dart';
 
 const supabaseUrl = String.fromEnvironment(
   'SUPABASE_URL',
@@ -49,8 +51,9 @@ class Course {
   final Color color;
   final double progress;
   final String? id;
+  final String status;
   const Course(this.title, this.category, this.description, this.duration, this.level,
-      this.icon, this.color, this.progress, {this.id});
+      this.icon, this.color, this.progress, {this.id, this.status = 'published'});
 }
 
 const courses = [
@@ -221,7 +224,7 @@ class _AcademyHomeState extends State<AcademyHome> {
   Future<void> _loadCourses() async {
     try {
       final rows = await supabase.from('courses')
-          .select('id,title,description,level')
+          .select('id,title,description,level,status')
           .order('created_at', ascending: false);
       final loaded = (rows as List).map((row) {
         final level = row['level'] as String? ?? 'beginner';
@@ -233,6 +236,7 @@ class _AcademyHomeState extends State<AcademyHome> {
           level == 'advanced' ? 'متقدم' : level == 'intermediate' ? 'متوسط' : 'مبتدئ',
           Icons.web_rounded, purple, 0,
           id: row['id'] as String?,
+          status: row['status'] as String? ?? 'published',
         );
       }).toList();
       if (mounted) setState(() { remoteCourses = loaded; coursesLoading = false; });
@@ -294,6 +298,115 @@ class _AcademyHomeState extends State<AcademyHome> {
     if (created == true) {
       await _loadCourses();
       if (mounted) _message('تم إنشاء الدورة كمسودة. يمكنك إضافة الدروس قبل نشرها.');
+    }
+  }
+
+
+  Future<void> _addLesson(Course course) async {
+    if (course.id == null) return;
+    final title = TextEditingController();
+    final description = TextEditingController();
+    PlatformFile? selectedVideo;
+    bool saving = false;
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, refresh) => AlertDialog(
+          title: const Text('إضافة درس جديد'),
+          content: SizedBox(width: 460, child: Column(mainAxisSize: MainAxisSize.min, children: [
+            TextField(controller: title, decoration: const InputDecoration(labelText: 'عنوان الدرس')),
+            const SizedBox(height: 10),
+            TextField(controller: description, maxLines: 3, decoration: const InputDecoration(labelText: 'وصف الدرس')),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: saving ? null : () async {
+                final picked = await FilePicker.platform.pickFiles(
+                  type: FileType.video, allowMultiple: false, withData: true,
+                );
+                if (picked != null && picked.files.isNotEmpty) {
+                  refresh(() => selectedVideo = picked.files.first);
+                }
+              },
+              icon: const Icon(Icons.video_file_outlined),
+              label: Text(selectedVideo == null ? 'اختيار فيديو (اختياري)' : selectedVideo!.name),
+            ),
+            if (selectedVideo != null)
+              Text((selectedVideo!.size / (1024 * 1024)).toStringAsFixed(1) + ' MB',
+                style: const TextStyle(fontSize: 12, color: Colors.blueGrey)),
+          ])),
+          actions: [
+            TextButton(onPressed: saving ? null : () => Navigator.pop(dialogContext, false),
+              child: const Text('إلغاء')),
+            FilledButton(
+              onPressed: saving ? null : () async {
+                if (title.text.trim().length < 2) return;
+                refresh(() => saving = true);
+                try {
+                  String? videoPath;
+                  if (selectedVideo != null) {
+                    final bytes = selectedVideo!.bytes;
+                    if (bytes == null || bytes.isEmpty) {
+                      throw Exception('تعذر قراءة ملف الفيديو من الجهاز.');
+                    }
+                    if (bytes.length > 524288000) {
+                      throw Exception('حجم الفيديو يتجاوز حد 500 ميغابايت.');
+                    }
+                    final safeName = selectedVideo!.name.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
+                    videoPath = course.id! + '/' + DateTime.now().microsecondsSinceEpoch.toString() + '_' + safeName;
+                    await supabase.storage.from('course-videos').uploadBinary(
+                      videoPath, bytes,
+                      fileOptions: FileOptions(
+                        contentType: selectedVideo!.extension?.toLowerCase() == 'webm'
+                          ? 'video/webm'
+                          : selectedVideo!.extension?.toLowerCase() == 'mov'
+                            ? 'video/quicktime' : 'video/mp4',
+                        upsert: false,
+                      ),
+                    );
+                  }
+                  final existing = await supabase.from('lessons')
+                    .select('position').eq('course_id', course.id!)
+                    .order('position', ascending: false).limit(1);
+                  final nextPosition = existing.isEmpty ? 1 : (existing.first['position'] as int) + 1;
+                  await supabase.from('lessons').insert({
+                    'course_id': course.id,
+                    'title': title.text.trim(),
+                    'description': description.text.trim(),
+                    'video_path': videoPath,
+                    'position': nextPosition,
+                    'is_preview': false,
+                  });
+                  if (dialogContext.mounted) Navigator.pop(dialogContext, true);
+                } catch (error) {
+                  if (dialogContext.mounted) {
+                    refresh(() => saving = false);
+                    ScaffoldMessenger.of(dialogContext).showSnackBar(
+                      SnackBar(content: Text('تعذر حفظ الدرس: ' + error.toString())),
+                    );
+                  }
+                }
+              },
+              child: saving
+                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Text('حفظ الدرس'),
+            ),
+          ],
+        ),
+      ),
+    );
+    title.dispose();
+    description.dispose();
+    if (result == true && mounted) _message('تمت إضافة الدرس إلى الدورة.');
+  }
+
+  Future<void> _publishCourse(Course course) async {
+    if (course.id == null) return;
+    try {
+      await supabase.from('courses').update({'status': 'published'}).eq('id', course.id!);
+      await _loadCourses();
+      if (mounted) _message('تم نشر الدورة وأصبحت متاحة للطلاب.');
+    } on PostgrestException catch (e) {
+      if (mounted) _message(e.message);
     }
   }
 
