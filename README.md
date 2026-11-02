@@ -107,7 +107,7 @@ flutter build web --release \
 - يُنصح بمراجعة حدود التخزين والبريد وخطة Supabase قبل استقبال أعداد كبيرة من المستخدمين.
 
 ## التقنية
-- Flutter / Dart
+- Flutter / Dart (direct dependencies pinned to the versions validated in CI)
 - Supabase Auth, Postgres, RLS, Storage, RPC
 - GitHub Actions
 - GitHub Pages
