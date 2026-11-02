@@ -9,6 +9,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:video_player/video_player.dart';
 import 'utils/formatters.dart';
+import 'utils/progress.dart';
+import 'utils/roles.dart';
 
 const supabaseUrl = String.fromEnvironment(
   'SUPABASE_URL',
@@ -178,7 +180,7 @@ class _AuthGateState extends State<AuthGate> {
             }
 
             final role = profile.data!['role'] as String?;
-            if (role == null || !['student', 'teacher', 'admin'].contains(role)) {
+            if (!isSupportedAcademyRole(role)) {
               return const Scaffold(
                 body: Center(
                   child: Text('نوع الحساب غير معروف. يرجى التواصل مع إدارة الأكاديمية.'),
@@ -186,7 +188,7 @@ class _AuthGateState extends State<AuthGate> {
               );
             }
             return AcademyHome(
-              isTeacher: role == 'teacher' || role == 'admin',
+              isTeacher: canManageAcademyCourses(role),
               role: role,
             );
           },
@@ -460,13 +462,16 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
       if (!completed && !force) return;
     }
     final save = Future<void>(() async {
-      await supabase.from('lesson_progress').upsert({
-        'lesson_id': widget.lessonId,
-        'student_id': user.id,
-        'completed': isCompleted,
-        'watched_seconds': watchedSeconds,
-        'updated_at': updatedAt,
-      }, onConflict: 'lesson_id,student_id');
+      await supabase.from('lesson_progress').upsert(
+        buildLessonProgressPayload(
+          lessonId: widget.lessonId,
+          studentId: user.id,
+          completed: isCompleted,
+          watchedSeconds: watchedSeconds,
+          updatedAt: DateTime.parse(updatedAt),
+        ),
+        onConflict: 'lesson_id,student_id',
+      );
     });
     _progressSaveTask = save;
     try {
