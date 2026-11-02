@@ -2280,7 +2280,7 @@ class _AcademyHomeState extends State<AcademyHome> {
                         onPressed: () async {
                           await _createQuiz(initialCourseId: course.id);
                           refreshSheet(() {
-                            quizzesFuture = supabase.from('quizzes').select('id,title')
+                            quizzesFuture = supabase.from('quizzes').select('id,title,passing_score,max_attempts')
                               .eq('course_id', course.id!).order('created_at');
                           });
                         },
@@ -2336,7 +2336,7 @@ class _AcademyHomeState extends State<AcademyHome> {
                                   onPressed: () async {
                                     await _addQuizQuestion(quiz['id'] as String);
                                     refreshSheet(() {
-                                      quizzesFuture = supabase.from('quizzes').select('id,title')
+                                      quizzesFuture = supabase.from('quizzes').select('id,title,passing_score,max_attempts')
                                         .eq('course_id', course.id!).order('created_at');
                                     });
                                   }),
