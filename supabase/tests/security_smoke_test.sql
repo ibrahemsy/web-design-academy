@@ -1,5 +1,5 @@
 -- Supabase security smoke test for Web Design Academy.
--- Run AFTER applying migrations 0001-0026 in the Supabase SQL Editor.
+-- Run AFTER applying migrations 0001-0028 in the Supabase SQL Editor.
 -- Read-only: this script creates no objects and changes no data.
 do $audit$
 declare
@@ -9,6 +9,9 @@ declare
   v_report_definition text;
   v_bucket_ok boolean;
   v_storage_policy_count integer;
+  v_role_policy_count integer;
+  v_role_guard_count integer;
+  v_role_guard_definition text;
 begin
   -- Video storage must remain private and restricted to the supported formats.
   select (
@@ -36,6 +39,45 @@ begin
 
   if v_storage_policy_count <> 4 then
     raise exception 'FAIL: expected all four scoped course video storage policies';
+  end if;
+
+  -- Critical role/profile/progress policies must remain installed.
+  select count(*) into v_role_policy_count
+  from pg_policies
+  where (schemaname = 'public' and (
+      (tablename = 'profiles' and policyname in ('profiles visible to self and admins', 'profile update self'))
+      or (tablename = 'courses' and policyname = 'published courses visible')
+      or (tablename = 'lesson_progress' and policyname = 'students manage own progress')
+    ))
+    or (schemaname = 'storage' and tablename = 'objects'
+      and policyname in ('eligible users read course videos', 'teachers upload course videos'));
+
+  if v_role_policy_count <> 6 then
+    raise exception 'FAIL: expected profile, published-course, own-progress, and scoped video policies';
+  end if;
+
+  select count(*) into v_role_guard_count
+  from pg_trigger t
+  join pg_class c on c.oid = t.tgrelid
+  join pg_namespace n on n.oid = c.relnamespace
+  where n.nspname = 'public'
+    and c.relname = 'profiles'
+    and t.tgname = 'profiles_role_guard'
+    and not t.tgisinternal;
+
+  if v_role_guard_count <> 1 then
+    raise exception 'FAIL: profile role changes must be protected by the role guard trigger';
+  end if;
+
+  select pg_get_functiondef(p.oid) into v_role_guard_definition
+  from pg_proc p
+  join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'public' and p.proname = 'guard_profile_role' and p.pronargs = 0;
+
+  if v_role_guard_definition is null
+     or position('SECURITY DEFINER' in upper(v_role_guard_definition)) = 0
+     or position($needle$SET search_path TO ''$needle$ in v_role_guard_definition) = 0 then
+    raise exception 'FAIL: profile role guard must be SECURITY DEFINER with an empty search_path';
   end if;
 
   -- Certificate records must remain protected by RLS and direct table grants.
@@ -122,11 +164,13 @@ begin
     and p.proname = 'issue_course_certificate'
     and p.pronargs = 1;
 
-  if v_definition is null or position('pg_catalog.gen_random_uuid()' in v_definition) = 0 then
-    raise exception 'FAIL: certificate issuance function is missing the 122-bit UUIDv4 code generator';
+  if v_definition is null
+     or position('pg_catalog.gen_random_uuid()' in v_definition) = 0
+     or position('substr(replace(pg_catalog.gen_random_uuid()::text, ''-'', ''''), 1, 32)' in v_definition) = 0 then
+    raise exception 'FAIL: certificate issuance function must use a 32-hex-character UUIDv4 suffix (122 random bits)';
   end if;
 
-  raise notice 'PASS: private video bucket, storage policies, certificate RLS, direct grants, RPC roles, hardened public wrappers, and 122-bit UUIDv4 code generation';
+  raise notice 'PASS: private video bucket, role/profile/progress policies, role guard, certificate RLS, direct grants, RPC roles, hardened public wrappers, and 122-bit UUIDv4 code generation';
 end;
 $audit$;
 
