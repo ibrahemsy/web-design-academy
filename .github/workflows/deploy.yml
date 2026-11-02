@@ -24,8 +24,12 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
+          cache: true
+          pub-cache: true
       - name: Install dependencies
         run: flutter pub get
+      - name: Analyze Dart code
+        run: flutter analyze
       - name: Build web
         run: flutter build web --release --base-href /web-design-academy/
       - name: Upload Pages artifact
