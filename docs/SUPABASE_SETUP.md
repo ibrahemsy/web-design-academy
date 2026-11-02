@@ -23,6 +23,7 @@
 8. `0008_optimize_rls_and_admin_video_permissions.sql` — تحسين سياسات RLS ودعم إدارة المدير للفيديو.
 9. `0009_consolidate_select_policies.sql` — دمج سياسات القراءة لتقليل التكرار.
 10. `0010_allow_preview_video_playback.sql` — مشاهدة فيديوهات المعاينة المنشورة مع بقاء bucket خاصاً.
+11. `0011_admin_user_role_management.sql` — إدارة أدوار الحسابات من لوحة المدير مع حماية آخر مدير.
 
 إذا كانت هذه التغييرات مطبقة بالفعل على مشروع الأكاديمية المتصل، فلا تعِد تشغيلها عليه.
 
