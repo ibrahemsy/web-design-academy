@@ -2022,7 +2022,6 @@ class _AcademyHomeState extends State<AcademyHome> {
             ),
             if (widget.isTeacher)
               TextButton.icon(
-                tooltip: t('التبديل بين وضع المدرّس ووضع التعلّم', 'Switch between teacher and learning modes'),
                 onPressed: () => setState(() {
                   studentMode = !studentMode;
                   selected = 0;
