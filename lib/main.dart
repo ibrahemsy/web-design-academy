@@ -2151,7 +2151,7 @@ class _AcademyHomeState extends State<AcademyHome> {
                         _csvCell(user['role']),
                         _csvCell(user['created_at']),
                       ].join(',')),
-                    ].join('\\n');
+                    ].join('\n');
                     _downloadCsv('academy-users.csv', csv);
                     _message('تم تنزيل تقرير المستخدمين بصيغة CSV.');
                   },
