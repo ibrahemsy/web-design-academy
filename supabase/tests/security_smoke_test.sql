@@ -40,7 +40,7 @@ begin
   end if;
 
   -- Confirm that the installed issuance function uses a 32-hex-character
-  -- cryptographically random suffix (128 bits), rather than the former 12-character UUID suffix.
+  -- cryptographically random suffix (122 random bits), rather than the former 12-character UUID suffix.
   select pg_get_functiondef(p.oid) into v_definition
   from pg_proc p
   join pg_namespace n on n.oid = p.pronamespace
@@ -48,11 +48,11 @@ begin
     and p.proname = 'issue_course_certificate'
     and p.pronargs = 1;
 
-  if v_definition is null or position('gen_random_bytes(16)' in v_definition) = 0 then
-    raise exception 'FAIL: certificate issuance function is missing the 128-bit random code generator';
+  if v_definition is null or position('pg_catalog.gen_random_uuid()' in v_definition) = 0 then
+    raise exception 'FAIL: certificate issuance function is missing the 122-bit UUIDv4 code generator';
   end if;
 
-  raise notice 'PASS: certificate RLS, direct grants, RPC roles, and 128-bit code generation';
+  raise notice 'PASS: certificate RLS, direct grants, RPC roles, and 122-bit UUIDv4 code generation';
 end;
 $audit$;
 
