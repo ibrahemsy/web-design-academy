@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:video_player/video_player.dart';
@@ -1785,6 +1786,7 @@ class _AcademyHomeState extends State<AcademyHome> {
             NavigationDestination(icon: const Icon(Icons.menu_book_rounded), label: t('الدورات', 'Courses')),
             NavigationDestination(icon: const Icon(Icons.play_circle_outline), label: t('تعلمي', 'Learning')),
             NavigationDestination(icon: const Icon(Icons.person_outline), label: t('حسابي', 'Profile')),
+            NavigationDestination(icon: const Icon(Icons.workspace_premium_outlined), label: t('شهاداتي', 'Certificates')),
             if (widget.role == 'admin')
               NavigationDestination(icon: const Icon(Icons.manage_accounts_outlined), label: t('المستخدمون', 'Users')),
           ],
@@ -1804,8 +1806,9 @@ class _AcademyHomeState extends State<AcademyHome> {
       _navItem(1, Icons.menu_book_rounded, t('استكشاف الدورات', 'Explore courses')),
       _navItem(2, Icons.play_circle_outline, t('متابعة التعلم', 'My learning')),
       _navItem(3, Icons.person_outline, t('الملف الشخصي', 'Profile')),
+      _navItem(4, Icons.workspace_premium_outlined, t('شهاداتي', 'My certificates')),
       if (widget.role == 'admin')
-        _navItem(4, Icons.manage_accounts_outlined, t('إدارة المستخدمين', 'User management')),
+        _navItem(5, Icons.manage_accounts_outlined, t('إدارة المستخدمين', 'User management')),
       const Spacer(),
       Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: const Color(0xFFF0EFFF), borderRadius: BorderRadius.circular(16)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -1835,7 +1838,8 @@ class _AcademyHomeState extends State<AcademyHome> {
     if (selected == 1) return _coursesPage();
     if (selected == 2) return _learningPage();
     if (selected == 3) return _profilePage();
-    if (selected == 4 && widget.role == 'admin') return _usersPage();
+    if (selected == 4) return _certificatesPage();
+    if (selected == 5 && widget.role == 'admin') return _usersPage();
     return _dashboard();
   }
 
@@ -2077,6 +2081,209 @@ class _AcademyHomeState extends State<AcademyHome> {
       },
     ),
   ]);
+
+  Future<List<Map<String, dynamic>>> _loadMyCertificates() async {
+    final raw = await supabase.rpc('get_my_course_certificates');
+    return (raw as List).map((row) => Map<String, dynamic>.from(row as Map)).toList();
+  }
+
+  Future<void> _issueCertificate(Course course) async {
+    if (course.id == null) return;
+    try {
+      final raw = await supabase.rpc('issue_course_certificate', params: {
+        'p_course_id': course.id,
+      });
+      final certificate = Map<String, dynamic>.from(raw as Map);
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          icon: const Icon(Icons.workspace_premium, color: purple, size: 42),
+          title: const Text('تم إصدار شهادتك'),
+          content: Column(mainAxisSize: MainAxisSize.min, children: [
+            Text(certificate['course_title']?.toString() ?? course.title,
+              textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 12),
+            SelectableText(certificate['certificate_code']?.toString() ?? '',
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, letterSpacing: 1.2)),
+            const SizedBox(height: 8),
+            const Text('احتفظ برمز الشهادة للتحقق من صحتها لاحقاً.',
+              textAlign: TextAlign.center, style: TextStyle(color: Colors.blueGrey)),
+          ]),
+          actions: [
+            TextButton.icon(
+              onPressed: () => Clipboard.setData(ClipboardData(
+                text: certificate['certificate_code']?.toString() ?? '')),
+              icon: const Icon(Icons.copy), label: const Text('نسخ الرمز')),
+            FilledButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('إغلاق')),
+          ],
+        ),
+      );
+      if (mounted) setState(() {});
+    } catch (error) {
+      final message = error is PostgrestException ? error.message : error.toString();
+      _message('لم تصدر الشهادة بعد: $message');
+    }
+  }
+
+  Future<void> _verifyCertificateDialog() async {
+    final code = TextEditingController();
+    Map<String, dynamic>? result;
+    bool loading = false;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, refresh) => AlertDialog(
+          title: const Text('التحقق من شهادة'),
+          content: SizedBox(width: 420, child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('أدخل رمز الشهادة للتحقق من أنها صادرة عن الأكاديمية.'),
+              const SizedBox(height: 12),
+              TextField(controller: code, textCapitalization: TextCapitalization.characters,
+                decoration: const InputDecoration(labelText: 'رمز الشهادة', hintText: 'WDA-XXXXXXXXXXXX')),
+              if (loading) const Padding(padding: EdgeInsets.all(12),
+                child: CircularProgressIndicator()),
+              if (result != null) ...[
+                const SizedBox(height: 12),
+                if (result!['valid'] == true) ...[
+                  const Icon(Icons.verified, color: Colors.green, size: 34),
+                  const Text('الشهادة صحيحة', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
+                  Text('الطالب: ${result!['student_name'] ?? '—'}'),
+                  Text('الدورة: ${result!['course_title'] ?? '—'}'),
+                  Text('تاريخ الإصدار: ${result!['issued_at'] ?? '—'}'),
+                ] else
+                  const Text('لم نعثر على شهادة بهذا الرمز.', style: TextStyle(color: Colors.deepOrange)),
+              ],
+            ],
+          )),
+          actions: [
+            TextButton(onPressed: loading ? null : () => Navigator.pop(dialogContext),
+              child: const Text('إغلاق')),
+            FilledButton(
+              onPressed: loading || code.text.trim().isEmpty ? null : () async {
+                refresh(() { loading = true; result = null; });
+                try {
+                  final raw = await supabase.rpc('verify_course_certificate', params: {
+                    'p_certificate_code': code.text.trim(),
+                  });
+                  if (dialogContext.mounted) refresh(() {
+                    result = Map<String, dynamic>.from(raw as Map);
+                    loading = false;
+                  });
+                } catch (error) {
+                  if (dialogContext.mounted) refresh(() => loading = false);
+                  _message('تعذر التحقق من الرمز: $error');
+                }
+              },
+              child: const Text('تحقق'),
+            ),
+          ],
+        ),
+      ),
+    );
+    code.dispose();
+  }
+
+  Widget _certificatesPage() {
+    final certificatesFuture = _loadMyCertificates();
+    return ListView(
+      padding: const EdgeInsets.all(24),
+      children: [
+        _sectionTitle(t('شهاداتي', 'My certificates')),
+        const SizedBox(height: 8),
+        Text(t('تصدر الشهادة بعد إكمال جميع دروس الدورة واجتياز جميع اختباراتِها.', 
+          'Certificates are issued after completing every lesson and passing every course quiz.'),
+          style: const TextStyle(color: Colors.blueGrey)),
+        const SizedBox(height: 12),
+        Align(alignment: AlignmentDirectional.centerStart,
+          child: OutlinedButton.icon(
+            onPressed: _verifyCertificateDialog,
+            icon: const Icon(Icons.verified_outlined),
+            label: const Text('التحقق من شهادة'),
+          )),
+        const SizedBox(height: 18),
+        FutureBuilder<List<Map<String, dynamic>>>(
+          future: certificatesFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: Padding(
+                padding: EdgeInsets.all(20), child: CircularProgressIndicator()));
+            }
+            if (snapshot.hasError) {
+              return const Text('تعذر تحميل شهاداتك حالياً. حاول تحديث الصفحة.');
+            }
+            final certificates = snapshot.data ?? [];
+            if (certificates.isEmpty) {
+              return Card(elevation: 0, color: Colors.white,
+                child: Padding(padding: const EdgeInsets.all(22), child: Column(
+                  children: [
+                    const Icon(Icons.workspace_premium_outlined, size: 48, color: purple),
+                    const SizedBox(height: 10),
+                    const Text('لا توجد شهادات صادرة حتى الآن.',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 6),
+                    const Text('أكمل دورة تعليمية ثم اطلب إصدار الشهادة من الأسفل.',
+                      textAlign: TextAlign.center, style: TextStyle(color: Colors.blueGrey)),
+                  ],
+                )));
+            }
+            return Column(children: certificates.map((certificate) {
+              final date = DateTime.tryParse(certificate['issued_at']?.toString() ?? '');
+              final code = certificate['certificate_code']?.toString() ?? '';
+              return Card(elevation: 0, color: Colors.white,
+                margin: const EdgeInsets.only(bottom: 10),
+                child: ListTile(
+                  leading: const CircleAvatar(backgroundColor: Color(0xFFE8E7FF),
+                    child: Icon(Icons.workspace_premium, color: purple)),
+                  title: Text(certificate['course_title']?.toString() ?? 'دورة تعليمية',
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
+                  subtitle: Text('الرمز: $code\\nالإصدار: ${date?.toLocal().toString().substring(0, 10) ?? '—'}'),
+                  isThreeLine: true,
+                  trailing: IconButton(
+                    tooltip: 'نسخ رمز الشهادة',
+                    icon: const Icon(Icons.copy_outlined),
+                    onPressed: () {
+                      Clipboard.setData(ClipboardData(text: code));
+                      _message('تم نسخ رمز الشهادة.');
+                    },
+                  ),
+                ));
+            }).toList());
+          },
+        ),
+        const Divider(height: 32),
+        _sectionTitle(t('الدورات المؤهلة للإصدار', 'Courses to certify')),
+        const SizedBox(height: 8),
+        const Text('يمكنك طلب الشهادة من هنا؛ تتحقق قاعدة البيانات من إكمال الدروس واجتياز الاختبارات قبل إصدارها.',
+          style: TextStyle(color: Colors.blueGrey)),
+        const SizedBox(height: 12),
+        FutureBuilder<List<Course>>(
+          future: learningCoursesFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (snapshot.hasError) return const Text('تعذر تحميل الدورات المسجل بها.');
+            final enrolled = (snapshot.data ?? [])
+              .where((course) => course.status == 'published').toList();
+            if (enrolled.isEmpty) return const Text('لا توجد دورات منشورة مسجل بها حالياً.');
+            return Column(children: enrolled.map((course) => Card(
+              elevation: 0, color: Colors.white,
+              child: ListTile(
+                title: Text(course.title),
+                subtitle: Text('تقدم الدروس: ${(course.progress * 100).round()}%'),
+                trailing: FilledButton.tonal(
+                  onPressed: () => _issueCertificate(course),
+                  child: const Text('طلب الشهادة'),
+                ),
+              ),
+            )).toList());
+          },
+        ),
+      ],
+    );
+  }
 
   Widget _profilePage() {
     final user = supabase.auth.currentUser;
