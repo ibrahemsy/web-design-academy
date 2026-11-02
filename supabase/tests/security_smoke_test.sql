@@ -5,7 +5,37 @@ do $audit$
 declare
   v_rls_enabled boolean;
   v_definition text;
+  v_bucket_ok boolean;
+  v_storage_policy_count integer;
 begin
+  -- Video storage must remain private and restricted to the supported formats.
+  select (
+    b.public = false
+    and b.file_size_limit = 524288000
+    and b.allowed_mime_types @> array['video/mp4', 'video/webm', 'video/quicktime']::text[]
+  ) into v_bucket_ok
+  from storage.buckets b
+  where b.id = 'course-videos';
+
+  if coalesce(v_bucket_ok, false) is not true then
+    raise exception 'FAIL: course-videos bucket must be private, limited to 500 MiB, and allow only configured video formats';
+  end if;
+
+  select count(*) into v_storage_policy_count
+  from pg_policies
+  where schemaname = 'storage'
+    and tablename = 'objects'
+    and policyname in (
+      'eligible users read course videos',
+      'teachers delete course videos',
+      'teachers update course videos',
+      'teachers upload course videos'
+    );
+
+  if v_storage_policy_count <> 4 then
+    raise exception 'FAIL: expected all four scoped course video storage policies';
+  end if;
+
   -- Certificate records must remain protected by RLS and direct table grants.
   select c.relrowsecurity into v_rls_enabled
   from pg_class c
@@ -63,7 +93,7 @@ begin
     raise exception 'FAIL: certificate issuance function is missing the 122-bit UUIDv4 code generator';
   end if;
 
-  raise notice 'PASS: certificate RLS, direct grants, RPC roles, and 122-bit UUIDv4 code generation';
+  raise notice 'PASS: private video bucket, storage policies, certificate RLS, direct grants, RPC roles, and 122-bit UUIDv4 code generation';
 end;
 $audit$;
 
