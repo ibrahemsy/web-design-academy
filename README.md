@@ -108,3 +108,8 @@ flutter build web --release \
 - Supabase Auth, Postgres, RLS, Storage, RPC
 - GitHub Actions
 - GitHub Pages
+
+
+## اختبارات الأمان
+
+بعد تطبيق ترحيلات Supabase، شغّل [اختبار الأمان للقراءة فقط](supabase/tests/security_smoke_test.sql) من SQL Editor للتحقق من صلاحيات الشهادات وRLS.
