@@ -140,8 +140,12 @@ begin
     select p.role into caller_role
     from public.profiles p where p.id = auth.uid();
 
-    if caller_role is distinct from 'admin'::public.user_role then
+    -- Permit project-owner SQL Editor bootstrap when no end-user JWT is present.
+    -- Normal client requests always require an authenticated admin profile.
+    if auth.uid() is not null and caller_role is distinct from 'admin'::public.user_role then
       raise exception 'Only an administrator can change account roles';
+    elsif auth.uid() is null and current_user not in ('postgres', 'supabase_admin') then
+      raise exception 'Role changes require an administrator';
     end if;
   end if;
   return new;
@@ -164,6 +168,11 @@ alter table public.quiz_attempts enable row level security;
 -- through application-specific reporting added in a later migration.
 create policy "profile read self" on public.profiles
 for select to authenticated using (id = auth.uid());
+create policy "admins read all profiles" on public.profiles
+for select to authenticated using (exists (
+  select 1 from public.profiles admin_profile
+  where admin_profile.id = auth.uid() and admin_profile.role = 'admin'
+));
 create policy "profile update self" on public.profiles
 for update to authenticated using (id = auth.uid()) with check (id = auth.uid());
 
