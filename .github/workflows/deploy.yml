@@ -32,6 +32,8 @@ jobs:
         run: flutter pub get
       - name: Verify repository release invariants
         run: python3 scripts/verify_repository.py
+      - name: Run automated unit tests
+        run: flutter test
       - name: Analyze Dart code
         run: flutter analyze
       - name: Build web
