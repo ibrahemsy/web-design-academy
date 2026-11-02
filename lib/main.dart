@@ -241,6 +241,25 @@ class _AuthScreenState extends State<AuthScreen> {
     }
   }
 
+  Future<void> _resetPassword() async {
+    final email = _email.text.trim();
+    if (email.isEmpty || !email.contains('@')) {
+      _show('أدخل بريدك الإلكتروني أولاً لإرسال رابط إعادة تعيين كلمة المرور.');
+      return;
+    }
+    setState(() => _busy = true);
+    try {
+      await supabase.auth.resetPasswordForEmail(email);
+      _show('إذا كان البريد مسجلاً، فسيصلك رابط إعادة تعيين كلمة المرور.');
+    } on AuthException catch (error) {
+      _show(error.message);
+    } catch (_) {
+      _show('تعذر إرسال رابط إعادة التعيين. حاول مرة أخرى.');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   void _show(String value) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value)));
@@ -288,6 +307,11 @@ class _AuthScreenState extends State<AuthScreen> {
                     onPressed: _busy ? null : _submit,
                     child: _busy ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
                       : Text(_register ? 'إنشاء حساب' : 'تسجيل الدخول')),
+                  if (!_register)
+                    TextButton(
+                      onPressed: _busy ? null : _resetPassword,
+                      child: const Text('نسيت كلمة المرور؟'),
+                    ),
                   TextButton(
                     onPressed: _busy ? null : () => setState(() => _register = !_register),
                     child: Text(_register ? 'لديك حساب؟ سجّل الدخول' : 'ليس لديك حساب؟ أنشئ حساباً جديداً')),
@@ -1267,8 +1291,10 @@ class _AcademyHomeState extends State<AcademyHome> {
     description.dispose();
     if (saved == true && mounted) {
       await _loadCourses();
-      learningCoursesFuture = _loadLearningCourses();
-      dashboardStatsFuture = _loadDashboardStats();
+      setState(() {
+        learningCoursesFuture = _loadLearningCourses();
+        dashboardStatsFuture = _loadDashboardStats();
+      });
       _message('تم تحديث بيانات الدورة.');
     }
   }
