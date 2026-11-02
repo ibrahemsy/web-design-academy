@@ -48,8 +48,9 @@ class Course {
   final IconData icon;
   final Color color;
   final double progress;
+  final String? id;
   const Course(this.title, this.category, this.description, this.duration, this.level,
-      this.icon, this.color, this.progress);
+      this.icon, this.color, this.progress, {this.id});
 }
 
 const courses = [
@@ -208,6 +209,93 @@ class _AcademyHomeState extends State<AcademyHome> {
   int selected = 0;
   bool english = false;
   String query = '';
+  List<Course> remoteCourses = [];
+  bool coursesLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCourses();
+  }
+
+  Future<void> _loadCourses() async {
+    try {
+      final rows = await supabase.from('courses')
+          .select('id,title,description,level')
+          .order('created_at', ascending: false);
+      final loaded = (rows as List).map((row) {
+        final level = row['level'] as String? ?? 'beginner';
+        return Course(
+          row['title'] as String? ?? '',
+          'دورة تعليمية',
+          row['description'] as String? ?? '',
+          'أكاديمية الويب',
+          level == 'advanced' ? 'متقدم' : level == 'intermediate' ? 'متوسط' : 'مبتدئ',
+          Icons.web_rounded, purple, 0,
+          id: row['id'] as String?,
+        );
+      }).toList();
+      if (mounted) setState(() { remoteCourses = loaded; coursesLoading = false; });
+    } catch (_) {
+      if (mounted) setState(() => coursesLoading = false);
+    }
+  }
+
+  Future<void> _createCourse() async {
+    final title = TextEditingController();
+    final description = TextEditingController();
+    String level = 'beginner';
+    final created = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, refreshDialog) => AlertDialog(
+          title: const Text('إنشاء دورة جديدة'),
+          content: SizedBox(width: 420, child: Column(mainAxisSize: MainAxisSize.min, children: [
+            TextField(controller: title, decoration: const InputDecoration(labelText: 'عنوان الدورة')),
+            const SizedBox(height: 10),
+            TextField(controller: description, maxLines: 3, decoration: const InputDecoration(labelText: 'وصف الدورة')),
+            const SizedBox(height: 10),
+            DropdownButtonFormField<String>(
+              value: level,
+              decoration: const InputDecoration(labelText: 'المستوى'),
+              items: const [
+                DropdownMenuItem(value: 'beginner', child: Text('مبتدئ')),
+                DropdownMenuItem(value: 'intermediate', child: Text('متوسط')),
+                DropdownMenuItem(value: 'advanced', child: Text('متقدم')),
+              ],
+              onChanged: (value) => refreshDialog(() => level = value ?? 'beginner'),
+            ),
+          ])),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('إلغاء')),
+            FilledButton(onPressed: () async {
+              if (title.text.trim().length < 3) return;
+              try {
+                await supabase.from('courses').insert({
+                  'teacher_id': supabase.auth.currentUser!.id,
+                  'title': title.text.trim(),
+                  'description': description.text.trim(),
+                  'level': level,
+                  'status': 'draft',
+                });
+                if (dialogContext.mounted) Navigator.pop(dialogContext, true);
+              } on PostgrestException catch (e) {
+                if (dialogContext.mounted) {
+                  ScaffoldMessenger.of(dialogContext).showSnackBar(SnackBar(content: Text(e.message)));
+                }
+              }
+            }, child: const Text('حفظ الدورة')),
+          ],
+        ),
+      ),
+    );
+    title.dispose();
+    description.dispose();
+    if (created == true) {
+      await _loadCourses();
+      if (mounted) _message('تم إنشاء الدورة كمسودة. يمكنك إضافة الدروس قبل نشرها.');
+    }
+  }
 
   String t(String ar, String en) => english ? en : ar;
 
@@ -303,12 +391,14 @@ class _AcademyHomeState extends State<AcademyHome> {
       TextButton(onPressed: () => setState(() => selected = 1), child: Text(t('عرض الكل', 'View all'))),
     ]),
     const SizedBox(height: 12),
+    if (coursesLoading) const Center(child: CircularProgressIndicator()),
+    if (!coursesLoading && remoteCourses.isEmpty) const Text('لا توجد دورات متاحة بعد.'),
     LayoutBuilder(builder: (context, c) {
       final count = c.maxWidth > 1050 ? 4 : c.maxWidth > 650 ? 2 : 1;
       return GridView.builder(shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
-        itemCount: courses.length, gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        itemCount: remoteCourses.length, gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: count, crossAxisSpacing: 14, mainAxisSpacing: 14, mainAxisExtent: 220),
-        itemBuilder: (_, i) => _courseCard(courses[i], i));
+        itemBuilder: (_, i) => _courseCard(remoteCourses[i], i));
     }),
     const SizedBox(height: 22),
     _sectionTitle(t('رحلتك التعليمية', 'Your learning journey')),
@@ -360,7 +450,7 @@ class _AcademyHomeState extends State<AcademyHome> {
     ]));
 
   Widget _teacherAction(IconData icon, String label) => OutlinedButton.icon(
-    onPressed: () => _message(t('قاعدة البيانات مرتبطة؛ واجهة إدارة المحتوى قيد التجهيز.', 'The database is connected; content management screens are still being built.')),
+    onPressed: () { if (icon == Icons.add) { _createCourse(); } else { _message(t('إضافة الدروس ورفع الفيديوهات ستكون الخطوة التالية.', 'Lesson creation and video uploads are next.')); } },
     icon: Icon(icon, color: Colors.white), label: Text(label, style: const TextStyle(color: Colors.white)),
     style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.white38)));
 
@@ -373,7 +463,9 @@ class _AcademyHomeState extends State<AcademyHome> {
       decoration: InputDecoration(hintText: t('ابحث عن دورة...', 'Search courses...'), prefixIcon: const Icon(Icons.search),
         filled: true, fillColor: Colors.white, border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none))),
     const SizedBox(height: 18),
-    ...courses.asMap().entries.where((e) => e.value.title.contains(query) || e.value.category.contains(query))
+    if (coursesLoading) const Center(child: CircularProgressIndicator()),
+    if (!coursesLoading && remoteCourses.isEmpty) const Text('لا توجد دورات بعد. ستظهر هنا الدورات التي ينشرها المدرسون.'),
+    ...remoteCourses.asMap().entries.where((e) => e.value.title.contains(query) || e.value.category.contains(query))
       .map((e) => Padding(padding: const EdgeInsets.only(bottom: 12), child: _courseCard(e.value, e.key))),
   ]);
 
@@ -382,7 +474,7 @@ class _AcademyHomeState extends State<AcademyHome> {
     const SizedBox(height: 8),
     Text(t('تابع من حيث توقفت.', 'Pick up where you left off.'), style: const TextStyle(color: Colors.blueGrey)),
     const SizedBox(height: 18),
-    ...courses.where((c) => c.progress > 0).map((c) => Padding(padding: const EdgeInsets.only(bottom: 12), child: _courseCard(c, courses.indexOf(c)))),
+    const Text('ستظهر هنا الدورات التي تسجل فيها بعد تفعيل التسجيل.'),
     const SizedBox(height: 14),
     _sectionTitle(t('الدروس الأخيرة', 'Recent lessons')),
     _lessonTile('مقدمة إلى عالم الويب', 'أساسيات تصميم الويب', Icons.play_circle_fill),
