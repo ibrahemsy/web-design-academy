@@ -178,7 +178,7 @@ class _AuthScreenState extends State<AuthScreen> {
                     decoration: InputDecoration(labelText: 'كلمة المرور', prefixIcon: const Icon(Icons.lock_outline),
                       suffixIcon: IconButton(icon: Icon(_hidePassword ? Icons.visibility : Icons.visibility_off),
                         onPressed: () => setState(() => _hidePassword = !_hidePassword))),
-                    onSubmitted: (_) => _busy ? null : _submit()),
+                    onSubmitted: (_) { if (!_busy) _submit(); }),
                   const SizedBox(height: 20),
                   FilledButton(
                     onPressed: _busy ? null : _submit,
@@ -272,9 +272,9 @@ class _AcademyHomeState extends State<AcademyHome> {
           Text(t('واصل التعلم وابنِ مشروعك الأول.', 'Keep learning and build your first project.'), style: const TextStyle(fontSize: 12, color: Colors.black54)),
         ])),
       const SizedBox(height: 12),
-      OutlinedButton.icon(onPressed: () => setState(() => isTeacher = !isTeacher),
-        icon: Icon(isTeacher ? Icons.school : Icons.cast_for_education),
-        label: Text(isTeacher ? t('عرض الطالب', 'Student view') : t('وضع المدرس', 'Teacher mode'))),
+      OutlinedButton.icon(onPressed: () async { await supabase.auth.signOut(); },
+        icon: const Icon(Icons.logout),
+        label: Text(t('تسجيل الخروج', 'Sign out'))),
     ]),
   );
 
