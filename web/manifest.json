@@ -1,0 +1,9 @@
+{
+  "name": "أكاديمية تصميم الويب",
+  "short_name": "Web Academy",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#F5F6FB",
+  "theme_color": "#101B32",
+  "description": "أكاديمية تفاعلية لتعلم تصميم وتطوير مواقع الويب"
+}
