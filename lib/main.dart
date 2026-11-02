@@ -64,8 +64,30 @@ const courses = [
 ];
 
 
-class AuthGate extends StatelessWidget {
+class AuthGate extends StatefulWidget {
   const AuthGate({super.key});
+
+  @override
+  State<AuthGate> createState() => _AuthGateState();
+}
+
+class _AuthGateState extends State<AuthGate> {
+  String? _profileUserId;
+  Future<Map<String, dynamic>?>? _profileFuture;
+
+  Future<Map<String, dynamic>?> _loadProfile(String userId) async {
+    final row = await supabase.from('profiles')
+        .select('id,role,display_name').eq('id', userId).maybeSingle();
+    if (row == null) return null;
+    return Map<String, dynamic>.from(row);
+  }
+
+  void _retryProfile(String userId) {
+    setState(() {
+      _profileUserId = userId;
+      _profileFuture = _loadProfile(userId);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -73,15 +95,93 @@ class AuthGate extends StatelessWidget {
       stream: supabase.auth.onAuthStateChange,
       builder: (context, snapshot) {
         final user = supabase.auth.currentUser;
-        if (user == null) return const AuthScreen();
-        return FutureBuilder(
-          future: supabase.from('profiles').select('role').eq('id', user.id).maybeSingle(),
+        if (user == null) {
+          _profileUserId = null;
+          _profileFuture = null;
+          return const AuthScreen();
+        }
+
+        if (_profileUserId != user.id || _profileFuture == null) {
+          _profileUserId = user.id;
+          _profileFuture = _loadProfile(user.id);
+        }
+
+        return FutureBuilder<Map<String, dynamic>?>(
+          future: _profileFuture,
           builder: (context, profile) {
             if (profile.connectionState == ConnectionState.waiting) {
-              return const Scaffold(body: Center(child: CircularProgressIndicator()));
+              return const Scaffold(
+                body: Center(child: CircularProgressIndicator()),
+              );
             }
-            final role = profile.data?['role'] as String? ?? 'student';
-            return AcademyHome(isTeacher: role == 'teacher' || role == 'admin', role: role);
+
+            if (profile.hasError || !profile.hasData || profile.data == null) {
+              final missing = !profile.hasError && profile.data == null;
+              return Directionality(
+                textDirection: TextDirection.rtl,
+                child: Scaffold(
+                  body: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 440),
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.shield_outlined,
+                                size: 48, color: Colors.deepOrange),
+                            const SizedBox(height: 14),
+                            Text(
+                              missing
+                                  ? 'لم نعثر على ملف صلاحيات لهذا الحساب.'
+                                  : 'تعذر التحقق من صلاحيات الحساب. لم يتم فتح التطبيق بصلاحيات افتراضية.',
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 10),
+                            const Text(
+                              'حاول إعادة تحميل بيانات الحساب، أو سجّل الخروج ثم أعد تسجيل الدخول.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(color: Colors.blueGrey),
+                            ),
+                            const SizedBox(height: 18),
+                            Wrap(
+                              spacing: 10,
+                              runSpacing: 8,
+                              alignment: WrapAlignment.center,
+                              children: [
+                                FilledButton.icon(
+                                  onPressed: () => _retryProfile(user.id),
+                                  icon: const Icon(Icons.refresh),
+                                  label: const Text('إعادة المحاولة'),
+                                ),
+                                OutlinedButton.icon(
+                                  onPressed: () => supabase.auth.signOut(),
+                                  icon: const Icon(Icons.logout),
+                                  label: const Text('تسجيل الخروج'),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }
+
+            final role = profile.data!['role'] as String?;
+            if (role == null || !['student', 'teacher', 'admin'].contains(role)) {
+              return const Scaffold(
+                body: Center(
+                  child: Text('نوع الحساب غير معروف. يرجى التواصل مع إدارة الأكاديمية.'),
+                ),
+              );
+            }
+            return AcademyHome(
+              isTeacher: role == 'teacher' || role == 'admin',
+              role: role,
+            );
           },
         );
       },
@@ -500,13 +600,18 @@ class _AcademyHomeState extends State<AcademyHome> {
                   final quiz = await supabase.from('quizzes').insert({
                     'course_id': courseId, 'title': title.text.trim(),
                   }).select('id').single();
-                  await supabase.from('quiz_questions').insert({
-                    'quiz_id': quiz['id'],
-                    'prompt': prompt.text.trim(),
-                    'options': options.map((o) => o.text.trim()).toList(),
-                    'correct_option': correct,
-                    'position': 1,
-                  });
+                  try {
+                    await supabase.from('quiz_questions').insert({
+                      'quiz_id': quiz['id'],
+                      'prompt': prompt.text.trim(),
+                      'options': options.map((o) => o.text.trim()).toList(),
+                      'correct_option': correct,
+                      'position': 1,
+                    });
+                  } catch (_) {
+                    await supabase.from('quizzes').delete().eq('id', quiz['id']);
+                    rethrow;
+                  }
                   if (dialogContext.mounted) Navigator.pop(dialogContext, true);
                 } catch (e) {
                   refresh(() => saving = false);
@@ -767,8 +872,8 @@ class _AcademyHomeState extends State<AcademyHome> {
               onPressed: saving ? null : () async {
                 if (title.text.trim().length < 2) return;
                 refresh(() => saving = true);
+                String? uploadedVideoPath;
                 try {
-                  String? videoPath;
                   if (selectedVideo != null) {
                     final bytes = selectedVideo!.bytes;
                     if (bytes == null || bytes.isEmpty) {
@@ -777,10 +882,14 @@ class _AcademyHomeState extends State<AcademyHome> {
                     if (bytes.length > 524288000) {
                       throw Exception('حجم الفيديو يتجاوز حد 500 ميغابايت.');
                     }
+                    final extension = selectedVideo!.extension?.toLowerCase() ?? '';
+                    if (!['mp4', 'webm', 'mov'].contains(extension)) {
+                      throw Exception('صيغة الفيديو غير مدعومة. استخدم MP4 أو WebM أو MOV.');
+                    }
                     final safeName = selectedVideo!.name.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
-                    videoPath = course.id! + '/' + DateTime.now().microsecondsSinceEpoch.toString() + '_' + safeName;
+                    uploadedVideoPath = course.id! + '/' + DateTime.now().microsecondsSinceEpoch.toString() + '_' + safeName;
                     await supabase.storage.from('course-videos').uploadBinary(
-                      videoPath, bytes,
+                      uploadedVideoPath!, bytes,
                       fileOptions: FileOptions(
                         contentType: selectedVideo!.extension?.toLowerCase() == 'webm'
                           ? 'video/webm'
@@ -798,12 +907,19 @@ class _AcademyHomeState extends State<AcademyHome> {
                     'course_id': course.id,
                     'title': title.text.trim(),
                     'description': description.text.trim(),
-                    'video_path': videoPath,
+                    'video_path': uploadedVideoPath,
                     'position': nextPosition,
                     'is_preview': false,
                   });
                   if (dialogContext.mounted) Navigator.pop(dialogContext, true);
                 } catch (error) {
+                  if (uploadedVideoPath != null) {
+                    try {
+                      await supabase.storage.from('course-videos').remove([uploadedVideoPath]);
+                    } catch (_) {
+                      // Preserve the original error; an orphaned object can be cleaned up later.
+                    }
+                  }
                   if (dialogContext.mounted) {
                     refresh(() => saving = false);
                     ScaffoldMessenger.of(dialogContext).showSnackBar(
