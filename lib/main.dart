@@ -1338,6 +1338,109 @@ class _AcademyHomeState extends State<AcademyHome> {
     }
   }
 
+  Future<void> _showCourseCertificates(String courseId, String courseTitle) async {
+    try {
+      final raw = await supabase.rpc(
+        'get_course_certificate_report',
+        params: {'p_course_id': courseId},
+      );
+      final rows = (raw as List)
+          .map((row) => Map<String, dynamic>.from(row as Map))
+          .toList();
+      final issued = rows.where((row) => row['certificate_issued'] == true).length;
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text('شهادات دورة: $courseTitle'),
+          content: SizedBox(
+            width: 620,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Wrap(spacing: 8, runSpacing: 8, children: [
+                  Chip(label: Text('إجمالي المسجلين: ${rows.length}')),
+                  Chip(label: Text('الشهادات الصادرة: $issued')),
+                  Chip(label: Text('بانتظار الإكمال: ${rows.length - issued}')),
+                ]),
+                const SizedBox(height: 12),
+                if (rows.isEmpty)
+                  const Text('لا يوجد طلاب مسجلون في هذه الدورة بعد.')
+                else
+                  SizedBox(
+                    height: 340,
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: rows.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      itemBuilder: (context, index) {
+                        final row = rows[index];
+                        final hasCertificate = row['certificate_issued'] == true;
+                        final issuedAt = DateTime.tryParse(row['issued_at']?.toString() ?? '');
+                        return ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: CircleAvatar(
+                            backgroundColor: hasCertificate
+                                ? const Color(0xFFE7F5EC)
+                                : const Color(0xFFF2F3F8),
+                            child: Icon(
+                              hasCertificate ? Icons.verified : Icons.hourglass_empty,
+                              color: hasCertificate ? Colors.green : Colors.blueGrey,
+                            ),
+                          ),
+                          title: Text(row['student_name']?.toString() ?? 'طالب'),
+                          subtitle: hasCertificate
+                              ? Text('الرمز: ${row['certificate_code']}\\nالإصدار: ${issuedAt?.toLocal().toString().substring(0, 10) ?? '—'}')
+                              : const Text('لم تصدر الشهادة بعد'),
+                          isThreeLine: hasCertificate,
+                          trailing: Text(
+                            hasCertificate ? 'صادرة' : 'غير صادرة',
+                            style: TextStyle(
+                              color: hasCertificate ? Colors.green : Colors.blueGrey,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton.icon(
+              onPressed: () {
+                String csvCell(Object? value) =>
+                    '"${(value?.toString() ?? '').replaceAll('"', '""')}"';
+                final csv = [
+                  ['student_name', 'certificate_status', 'certificate_code', 'issued_at'].join(','),
+                  ...rows.map((row) => [
+                    csvCell(row['student_name']),
+                    csvCell(row['certificate_issued'] == true ? 'issued' : 'pending'),
+                    csvCell(row['certificate_code']),
+                    csvCell(row['issued_at']),
+                  ].join(',')),
+                ].join('\\n');
+                Clipboard.setData(ClipboardData(text: csv));
+                Navigator.pop(dialogContext);
+                _message('تم نسخ تقرير الشهادات بصيغة CSV.');
+              },
+              icon: const Icon(Icons.copy_all_outlined),
+              label: const Text('نسخ CSV'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('إغلاق'),
+            ),
+          ],
+        ),
+      );
+    } catch (error) {
+      _message('تعذر تحميل تقرير الشهادات: $error');
+    }
+  }
+
   Future<void> _showCourseStudents(String courseId, String courseTitle) async {
     try {
       final raw = await supabase.rpc(
@@ -2598,6 +2701,11 @@ class _AcademyHomeState extends State<AcademyHome> {
                         onPressed: () => _showCourseStudents(course.id!, course.title),
                         icon: const Icon(Icons.groups_outlined),
                         label: const Text('الطلاب والتقدم'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: () => _showCourseCertificates(course.id!, course.title),
+                        icon: const Icon(Icons.workspace_premium_outlined),
+                        label: const Text('تقرير الشهادات'),
                       ),
                       if (course.status != 'published')
                         OutlinedButton.icon(
