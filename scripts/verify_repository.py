@@ -15,9 +15,11 @@ DART_TESTS = (
     ROOT / "test" / "utils" / "formatters_test.dart",
     ROOT / "test" / "utils" / "roles_test.dart",
     ROOT / "test" / "utils" / "progress_test.dart",
+    ROOT / "test" / "utils" / "course_progress_test.dart",
 )
 ROLE_HELPER = ROOT / "lib" / "utils" / "roles.dart"
 PROGRESS_HELPER = ROOT / "lib" / "utils" / "progress.dart"
+COURSE_PROGRESS_HELPER = ROOT / "lib" / "utils" / "course_progress.dart"
 MAIN_DART = ROOT / "lib" / "main.dart"
 WORKFLOW = ROOT / ".github" / "workflows" / "deploy.yml"
 
@@ -80,11 +82,11 @@ if not TEST_SQL.exists():
 for test_file in DART_TESTS:
     if not test_file.exists():
         fail(f"Required utility unit test is missing: {test_file.relative_to(ROOT)}")
-for source_file in (ROLE_HELPER, PROGRESS_HELPER):
+for source_file in (ROLE_HELPER, PROGRESS_HELPER, COURSE_PROGRESS_HELPER):
     if not source_file.exists():
         fail(f"Required application utility is missing: {source_file.relative_to(ROOT)}")
 main_source = MAIN_DART.read_text(encoding="utf-8")
-for fragment in ("utils/roles.dart", "utils/progress.dart", "isSupportedAcademyRole", "canManageAcademyCourses", "buildLessonProgressPayload"):
+for fragment in ("utils/roles.dart", "utils/progress.dart", "utils/course_progress.dart", "calculateCourseProgress", "certificatesFuture = _loadMyCertificates()", "isSupportedAcademyRole", "canManageAcademyCourses", "buildLessonProgressPayload"):
     if fragment not in main_source:
         fail(f"Application is not using the tested helper: {fragment}")
 if not WORKFLOW.exists() or "flutter test" not in WORKFLOW.read_text(encoding="utf-8"):
