@@ -124,7 +124,7 @@ for fragment in ("utils/roles.dart", "utils/progress.dart", "utils/course_progre
 if not WORKFLOW.exists():
     fail("GitHub Actions workflow is missing")
 workflow_text = WORKFLOW.read_text(encoding="utf-8")
-deploy_job = re.search(r"(?ms)^  deploy:\\n(.*?)(?=^  [A-Za-z0-9_-]+:|\\Z)", workflow_text)
+deploy_job = re.search(r"(?ms)^  deploy:\n(.*?)(?=^  [A-Za-z0-9_-]+:|\Z)", workflow_text)
 if not deploy_job or "runs-on: ubuntu-24.04" not in deploy_job.group(1):
     fail("Browser smoke tests must run on the Playwright-supported Ubuntu 24.04 runner")
 if "flutter test" not in workflow_text:
