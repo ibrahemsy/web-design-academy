@@ -14,21 +14,32 @@ try {
   await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
   await page.waitForFunction(
     () => {
-      const host = document.querySelector('flt-glass-pane');
-      return Boolean(document.querySelector('canvas') || host?.shadowRoot?.querySelector('canvas'));
+      const hasCanvas = (root) => {
+        if (root.querySelector('canvas')) return true;
+        return [...root.querySelectorAll('*')].some(
+          (element) => element.shadowRoot && hasCanvas(element.shadowRoot),
+        );
+      };
+      const host = document.querySelector('flutter-view, flt-glass-pane');
+      return Boolean(host && hasCanvas(document));
     },
     null,
     { timeout: 60000 },
   );
 
-  const result = await page.evaluate(() => ({
-    title: document.title,
-    flutterHost: Boolean(document.querySelector('flt-glass-pane')),
-    canvas: Boolean(
-      document.querySelector('canvas') ||
-      document.querySelector('flt-glass-pane')?.shadowRoot?.querySelector('canvas')
-    ),
-  }));
+  const result = await page.evaluate(() => {
+    const hasCanvas = (root) => {
+      if (root.querySelector('canvas')) return true;
+      return [...root.querySelectorAll('*')].some(
+        (element) => element.shadowRoot && hasCanvas(element.shadowRoot),
+      );
+    };
+    return {
+      title: document.title,
+      flutterHost: Boolean(document.querySelector('flutter-view, flt-glass-pane')),
+      canvas: hasCanvas(document),
+    };
+  });
 
   if (!result.title.includes('أكاديمية تصميم الويب')) {
     throw new Error(`Unexpected deployed page title: ${result.title}`);
