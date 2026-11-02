@@ -75,7 +75,7 @@ flutter build web --release \
 
 ## قاعدة البيانات
 
-ملفات التغييرات المتسلسلة موجودة في `supabase/migrations/` من `0001` إلى `0024`. راجع [دليل إعداد Supabase](docs/SUPABASE_SETUP.md) قبل تطبيقها على مشروع جديد.
+ملفات التغييرات المتسلسلة موجودة في `supabase/migrations/` من `0001` إلى `0025`. راجع [دليل إعداد Supabase](docs/SUPABASE_SETUP.md) قبل تطبيقها على مشروع جديد.
 
 ## النشر
 
