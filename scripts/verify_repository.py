@@ -70,6 +70,19 @@ if not report_wrapper_migration.exists():
 report_wrapper_sql = report_wrapper_migration.read_text(encoding="utf-8")
 if "security definer" not in report_wrapper_sql.lower() or "set search_path = ''" not in report_wrapper_sql.lower():
     fail("Migration 0028 must harden the public report wrapper and its search_path")
+grant_hardening_migration = MIGRATIONS / "0029_minimize_public_data_api_grants.sql"
+if not grant_hardening_migration.exists():
+    fail("Public Data API least-privilege migration 0029 is missing")
+grant_hardening_sql = grant_hardening_migration.read_text(encoding="utf-8").lower()
+for fragment in (
+    "revoke all privileges on all tables in schema public from anon",
+    "revoke all privileges on all tables in schema public from authenticated",
+    "revoke execute on functions from public, anon, authenticated, service_role",
+    "revoke all on sequences from anon, authenticated, service_role",
+):
+    if fragment not in grant_hardening_sql:
+        fail(f"Migration 0029 is missing least-privilege default grant: {fragment}")
+
 required_fragments = (
     "security definer",
     "set search_path = ''",
@@ -122,6 +135,9 @@ for fragment in (
     "course-videos",
     "eligible users read course videos",
     "profiles_role_guard",
+    "v_default_acl_count",
+    "public.quiz_attempts",
+    "public.set_updated_at()",
     "students manage own progress",
     "profiles visible to self and admins",
     "profile update self",
@@ -134,5 +150,5 @@ print(f"PASS: {len(files)} migrations are sequential (0001-{max(versions):04d}).
 print("PASS: certificate issuance uses the expected UUIDv4 generator and hardened search_path.")
 print("PASS: formatter, role authorization, lesson progress, course completion, and password recovery validation tests are present and included in CI.")
 print("PASS: GitHub Pages deployment includes a post-deployment HTTP smoke test for Flutter runtime assets.")
-print("PASS: Supabase security smoke test covers profile/role/progress policies, private video storage, certificate RLS, RPC grants, and code generation.")
+print("PASS: Supabase security smoke test covers least-privilege grants, future default ACLs, role/progress policies, private video storage, certificate RLS, RPC grants, and code generation.")
 print("NOTE: These checks are static. Run security_smoke_test.sql on the target Supabase database before launch.")
