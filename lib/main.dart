@@ -330,7 +330,8 @@ class LessonPlayerScreen extends StatefulWidget {
   final String title;
   final String videoUrl;
   final String lessonId;
-  const LessonPlayerScreen({super.key, required this.title, required this.videoUrl, required this.lessonId});
+  final bool allowProgress;
+  const LessonPlayerScreen({super.key, required this.title, required this.videoUrl, required this.lessonId, this.allowProgress = true});
 
   @override
   State<LessonPlayerScreen> createState() => _LessonPlayerScreenState();
@@ -398,11 +399,17 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
               ),
               VideoProgressIndicator(_controller, allowScrubbing: true),
               const SizedBox(height: 12),
-              FilledButton.icon(
-                onPressed: _savingProgress || _completed ? null : _markCompleted,
-                icon: Icon(_completed ? Icons.check_circle : Icons.task_alt),
-                label: Text(_savingProgress ? 'جارٍ حفظ التقدم...' : _completed ? 'تم إكمال الدرس' : 'وضع علامة مكتمل'),
-              ),
+              if (widget.allowProgress)
+                FilledButton.icon(
+                  onPressed: _savingProgress || _completed ? null : _markCompleted,
+                  icon: Icon(_completed ? Icons.check_circle : Icons.task_alt),
+                  label: Text(_savingProgress ? 'جارٍ حفظ التقدم...' : _completed ? 'تم إكمال الدرس' : 'وضع علامة مكتمل'),
+                )
+              else
+                const Padding(
+                  padding: EdgeInsets.all(12),
+                  child: Text('أنت تشاهد معاينة مجانية. سجّل في الدورة لحفظ تقدمك.'),
+                ),
               IconButton(
                 iconSize: 42,
                 onPressed: () => setState(() {
@@ -991,6 +998,55 @@ class _AcademyHomeState extends State<AcademyHome> {
     }
   }
 
+
+  Future<void> _editDisplayName() async {
+    final user = supabase.auth.currentUser;
+    if (user == null) return;
+    final currentName = user.userMetadata?['display_name']?.toString() ?? '';
+    final name = TextEditingController(text: currentName);
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('تعديل الاسم الظاهر'),
+        content: SizedBox(
+          width: 400,
+          child: TextField(
+            controller: name,
+            autofocus: true,
+            maxLength: 80,
+            decoration: const InputDecoration(labelText: 'الاسم الظاهر'),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('إلغاء')),
+          FilledButton(
+            onPressed: () async {
+              final value = name.text.trim();
+              if (value.length < 2) {
+                _message('أدخل اسماً يتكون من حرفين على الأقل.');
+                return;
+              }
+              try {
+                await supabase.from('profiles').update({
+                  'display_name': value,
+                }).eq('id', user.id);
+                await supabase.auth.updateUser(
+                  UserAttributes(data: {'display_name': value}),
+                );
+                if (dialogContext.mounted) Navigator.pop(dialogContext, true);
+              } catch (error) {
+                _message('تعذر تحديث الاسم: $error');
+              }
+            },
+            child: const Text('حفظ'),
+          ),
+        ],
+      ),
+    );
+    name.dispose();
+    if (saved == true && mounted) setState(() {});
+  }
 
   Future<void> _showMyQuizHistory() async {
     final user = supabase.auth.currentUser;
@@ -1643,6 +1699,12 @@ class _AcademyHomeState extends State<AcademyHome> {
     Text(user?.email ?? '', style: const TextStyle(color: Colors.blueGrey)),
     const SizedBox(height: 24),
     ListTile(leading: const Icon(Icons.verified_user_outlined), title: Text(roleLabel)),
+    ListTile(
+      leading: const Icon(Icons.edit_outlined),
+      title: const Text('تعديل الاسم الظاهر'),
+      trailing: const Icon(Icons.chevron_left),
+      onTap: _editDisplayName,
+    ),
     if (!widget.isTeacher)
       ListTile(
         leading: const Icon(Icons.history_edu_outlined),
@@ -1919,6 +1981,7 @@ class _AcademyHomeState extends State<AcademyHome> {
                               return;
                             }
                             try {
+                              final canTrackProgress = !widget.isTeacher && await enrollmentFuture;
                               final url = await supabase.storage.from('course-videos')
                                 .createSignedUrl(path, 3600);
                               if (!context.mounted) return;
@@ -1929,6 +1992,7 @@ class _AcademyHomeState extends State<AcademyHome> {
                                   title: lesson['title'] as String? ?? 'مشغل الدرس',
                                   videoUrl: url,
                                   lessonId: lesson['id'] as String,
+                                  allowProgress: canTrackProgress,
                                 ),
                               ));
                             } catch (error) {
