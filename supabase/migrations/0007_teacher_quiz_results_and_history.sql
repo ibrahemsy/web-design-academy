@@ -1,0 +1,2 @@
+-- Teacher-only quiz result summary RPC is applied to the Supabase project.
+-- See private.get_quiz_results_for_teacher(uuid) and public.get_quiz_results_for_teacher(uuid).
