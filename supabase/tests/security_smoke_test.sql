@@ -1,5 +1,5 @@
 -- Supabase security smoke test for Web Design Academy.
--- Run AFTER applying migrations 0001-0028 in the Supabase SQL Editor.
+-- Run AFTER applying migrations 0001-0029 in the Supabase SQL Editor.
 -- Read-only: this script creates no objects and changes no data.
 do $audit$
 declare
@@ -12,6 +12,7 @@ declare
   v_role_policy_count integer;
   v_role_guard_count integer;
   v_role_guard_definition text;
+  v_default_acl_count integer;
 begin
   -- Video storage must remain private and restricted to the supported formats.
   select (
@@ -78,6 +79,61 @@ begin
      or position('SECURITY DEFINER' in upper(v_role_guard_definition)) = 0
      or position($needle$SET search_path TO ''$needle$ in v_role_guard_definition) = 0 then
     raise exception 'FAIL: profile role guard must be SECURITY DEFINER with an empty search_path';
+  end if;
+
+  -- Anonymous users must not receive table-write or truncate privileges.
+  if has_table_privilege('anon', 'public.courses', 'INSERT')
+     or has_table_privilege('anon', 'public.courses', 'UPDATE')
+     or has_table_privilege('anon', 'public.courses', 'DELETE')
+     or has_table_privilege('anon', 'public.courses', 'TRUNCATE')
+     or has_table_privilege('anon', 'public.profiles', 'SELECT') then
+    raise exception 'FAIL: anon must not write public tables or read private profiles';
+  end if;
+
+  if not has_table_privilege('anon', 'public.courses', 'SELECT') then
+    raise exception 'FAIL: anon must retain the published course catalogue read grant';
+  end if;
+
+  -- Authenticated users must not bypass server-side quiz grading or truncate data.
+  if has_table_privilege('authenticated', 'public.quiz_attempts', 'INSERT')
+     or has_table_privilege('authenticated', 'public.quiz_attempts', 'UPDATE')
+     or has_table_privilege('authenticated', 'public.quiz_attempts', 'DELETE')
+     or has_table_privilege('authenticated', 'public.quiz_attempts', 'TRUNCATE')
+     or has_table_privilege('authenticated', 'public.profiles', 'DELETE')
+     or has_table_privilege('authenticated', 'public.profiles', 'INSERT') then
+    raise exception 'FAIL: authenticated direct table grants exceed the academy application access model';
+  end if;
+
+  if not has_table_privilege('authenticated', 'public.lesson_progress', 'INSERT')
+     or not has_table_privilege('authenticated', 'public.lesson_progress', 'UPDATE')
+     or not has_table_privilege('authenticated', 'public.enrollments', 'INSERT')
+     or not has_table_privilege('authenticated', 'public.courses', 'INSERT') then
+    raise exception 'FAIL: authenticated users are missing required app table grants';
+  end if;
+
+  if has_function_privilege('anon', 'public.set_updated_at()', 'EXECUTE')
+     or has_function_privilege('authenticated', 'public.set_updated_at()', 'EXECUTE') then
+    raise exception 'FAIL: trigger-only set_updated_at function must not be directly executable';
+  end if;
+
+  -- Future public objects must not inherit API grants from the postgres owner.
+  select count(*) into v_default_acl_count
+  from pg_default_acl d
+  join pg_namespace n on n.oid = d.defaclnamespace
+  cross join lateral aclexplode(d.defaclacl) acl
+  where d.defaclrole = 'postgres'::regrole
+    and n.nspname = 'public'
+    and (
+      acl.grantee in (
+        'anon'::regrole::oid,
+        'authenticated'::regrole::oid,
+        'service_role'::regrole::oid
+      )
+      or (d.defaclobjtype = 'f' and acl.grantee = 0 and acl.privilege_type = 'EXECUTE')
+    );
+
+  if v_default_acl_count <> 0 then
+    raise exception 'FAIL: postgres default privileges still expose new public objects to API roles or PUBLIC';
   end if;
 
   -- Certificate records must remain protected by RLS and direct table grants.
@@ -170,7 +226,7 @@ begin
     raise exception 'FAIL: certificate issuance function must use a 32-hex-character UUIDv4 suffix (122 random bits)';
   end if;
 
-  raise notice 'PASS: private video bucket, role/profile/progress policies, role guard, certificate RLS, direct grants, RPC roles, hardened public wrappers, and 122-bit UUIDv4 code generation';
+  raise notice 'PASS: private video bucket, least-privilege Data API grants, locked-down future defaults, role/profile/progress policies, role guard, certificate RLS, RPC roles, hardened public wrappers, and 122-bit UUIDv4 code generation';
 end;
 $audit$;
 
