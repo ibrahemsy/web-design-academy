@@ -736,7 +736,11 @@ class _AcademyHomeState extends State<AcademyHome> {
       );
       if (result != null && mounted) {
         final score = (result['score'] as num?)?.toStringAsFixed(2) ?? '0';
-        _message('نتيجتك: $score% — الإجابات الصحيحة ${result['correct_answers']} من ${result['total_questions']}.');
+        final passed = (double.tryParse(score) ?? 0) >= 50;
+        _message(
+          '${passed ? 'تهانينا، لقد اجتزت الاختبار!' : 'لم تصل إلى درجة النجاح بعد، حاول مجدداً.'} '
+          'نتيجتك: $score% — الإجابات الصحيحة ${result['correct_answers']} من ${result['total_questions']}.',
+        );
       }
     } catch (e) {
       _message('تعذر فتح الاختبار. تأكد من الالتحاق بالدورة المنشورة. $e');
@@ -939,6 +943,172 @@ class _AcademyHomeState extends State<AcademyHome> {
     title.dispose();
     description.dispose();
     if (result == true && mounted) _message('تمت إضافة الدرس إلى الدورة.');
+  }
+
+  Future<void> _editCourse(Course course) async {
+    if (course.id == null) return;
+    final title = TextEditingController(text: course.title);
+    final description = TextEditingController(text: course.description);
+    String level = course.level == 'متقدم'
+        ? 'advanced'
+        : course.level == 'متوسط' ? 'intermediate' : 'beginner';
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, refresh) => AlertDialog(
+          title: const Text('تعديل بيانات الدورة'),
+          content: SizedBox(
+            width: 440,
+            child: SingleChildScrollView(
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                TextField(
+                  controller: title,
+                  maxLength: 100,
+                  decoration: const InputDecoration(labelText: 'عنوان الدورة'),
+                ),
+                TextField(
+                  controller: description,
+                  maxLines: 4,
+                  maxLength: 1200,
+                  decoration: const InputDecoration(labelText: 'وصف الدورة'),
+                ),
+                DropdownButtonFormField<String>(
+                  value: level,
+                  decoration: const InputDecoration(labelText: 'المستوى'),
+                  items: const [
+                    DropdownMenuItem(value: 'beginner', child: Text('مبتدئ')),
+                    DropdownMenuItem(value: 'intermediate', child: Text('متوسط')),
+                    DropdownMenuItem(value: 'advanced', child: Text('متقدم')),
+                  ],
+                  onChanged: (value) => refresh(() => level = value ?? level),
+                ),
+              ]),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('إلغاء'),
+            ),
+            FilledButton(
+              onPressed: () async {
+                if (title.text.trim().length < 3) {
+                  _message('يجب أن يتكون عنوان الدورة من 3 أحرف على الأقل.');
+                  return;
+                }
+                try {
+                  await supabase.from('courses').update({
+                    'title': title.text.trim(),
+                    'description': description.text.trim(),
+                    'level': level,
+                  }).eq('id', course.id!);
+                  if (dialogContext.mounted) Navigator.pop(dialogContext, true);
+                } catch (error) {
+                  _message('تعذر تحديث الدورة: $error');
+                }
+              },
+              child: const Text('حفظ التعديلات'),
+            ),
+          ],
+        ),
+      ),
+    );
+    title.dispose();
+    description.dispose();
+    if (saved == true && mounted) {
+      await _loadCourses();
+      learningCoursesFuture = _loadLearningCourses();
+      dashboardStatsFuture = _loadDashboardStats();
+      _message('تم تحديث بيانات الدورة.');
+    }
+  }
+
+  Future<void> _archiveCourse(Course course) async {
+    if (course.id == null) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('أرشفة الدورة'),
+        content: Text('هل تريد أرشفة «${course.title}»؟ لن تظهر الدورة ضمن الدورات المنشورة للطلاب.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('إلغاء'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('أرشفة الدورة'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await supabase.from('courses')
+          .update({'status': 'archived'}).eq('id', course.id!);
+      await _loadCourses();
+      if (mounted) _message('تمت أرشفة الدورة.');
+    } catch (error) {
+      _message('تعذرت أرشفة الدورة: $error');
+    }
+  }
+
+  Future<void> _editLesson(Map<String, dynamic> lesson) async {
+    final lessonId = lesson['id'] as String?;
+    if (lessonId == null) return;
+    final title = TextEditingController(text: lesson['title']?.toString() ?? '');
+    final description = TextEditingController(text: lesson['description']?.toString() ?? '');
+    bool isPreview = lesson['is_preview'] == true;
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, refresh) => AlertDialog(
+          title: const Text('تعديل الدرس'),
+          content: SizedBox(
+            width: 420,
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              TextField(controller: title, maxLength: 100,
+                decoration: const InputDecoration(labelText: 'عنوان الدرس')),
+              TextField(controller: description, maxLines: 3, maxLength: 1000,
+                decoration: const InputDecoration(labelText: 'وصف الدرس')),
+              CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                value: isPreview,
+                onChanged: (value) => refresh(() => isPreview = value ?? false),
+                title: const Text('إتاحة الدرس كمعاينة مجانية'),
+                controlAffinity: ListTileControlAffinity.leading,
+              ),
+            ]),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('إلغاء')),
+            FilledButton(
+              onPressed: () async {
+                if (title.text.trim().length < 2) {
+                  _message('أدخل عنواناً صحيحاً للدرس.');
+                  return;
+                }
+                try {
+                  await supabase.from('lessons').update({
+                    'title': title.text.trim(),
+                    'description': description.text.trim(),
+                    'is_preview': isPreview,
+                  }).eq('id', lessonId);
+                  if (dialogContext.mounted) Navigator.pop(dialogContext, true);
+                } catch (error) {
+                  _message('تعذر تعديل الدرس: $error');
+                }
+              },
+              child: const Text('حفظ'),
+            ),
+          ],
+        ),
+      ),
+    );
+    title.dispose();
+    description.dispose();
+    if (saved == true && mounted) _message('تم تحديث الدرس.');
   }
 
   Future<void> _publishCourse(Course course) async {
@@ -1299,6 +1469,11 @@ class _AcademyHomeState extends State<AcademyHome> {
                         },
                         icon: const Icon(Icons.add), label: const Text('إضافة درس'),
                       ),
+                      OutlinedButton.icon(
+                        onPressed: () => _editCourse(course),
+                        icon: const Icon(Icons.edit_outlined),
+                        label: const Text('تعديل الدورة'),
+                      ),
                       if (course.status != 'published')
                         OutlinedButton.icon(
                           onPressed: () async {
@@ -1306,6 +1481,15 @@ class _AcademyHomeState extends State<AcademyHome> {
                             if (sheetContext.mounted) Navigator.pop(sheetContext);
                           },
                           icon: const Icon(Icons.publish), label: const Text('نشر الدورة'),
+                        ),
+                      if (course.status != 'archived')
+                        OutlinedButton.icon(
+                          onPressed: () async {
+                            await _archiveCourse(course);
+                            if (sheetContext.mounted) Navigator.pop(sheetContext);
+                          },
+                          icon: const Icon(Icons.archive_outlined),
+                          label: const Text('أرشفة الدورة'),
                         ),
                     ]),
                     const SizedBox(height: 16),
@@ -1418,7 +1602,17 @@ class _AcademyHomeState extends State<AcademyHome> {
                           subtitle: Text((lesson['description'] as String? ?? '').isEmpty
                             ? (lesson['video_path'] == null ? 'درس نصي' : 'يتضمن فيديو')
                             : lesson['description'] as String),
-                          trailing: const Icon(Icons.chevron_left),
+                          trailing: widget.isTeacher
+                            ? PopupMenuButton<String>(
+                                tooltip: 'إجراءات الدرس',
+                                onSelected: (value) {
+                                  if (value == 'edit') _editLesson(lesson);
+                                },
+                                itemBuilder: (_) => const [
+                                  PopupMenuItem(value: 'edit', child: Text('تعديل الدرس')),
+                                ],
+                              )
+                            : const Icon(Icons.chevron_left),
                           onTap: () async {
                             final path = lesson['video_path'] as String?;
                             if (path == null || path.isEmpty) {
