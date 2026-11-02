@@ -10,6 +10,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:video_player/video_player.dart';
 import 'utils/formatters.dart';
 import 'utils/progress.dart';
+import 'utils/course_progress.dart';
 import 'utils/roles.dart';
 
 const supabaseUrl = String.fromEnvironment(
@@ -625,6 +626,7 @@ class _AcademyHomeState extends State<AcademyHome> {
   List<Course> remoteCourses = [];
   bool coursesLoading = true;
   late Future<List<Course>> learningCoursesFuture;
+  late Future<List<Map<String, dynamic>>> certificatesFuture;
   late Future<Map<String, int>> dashboardStatsFuture;
   late Future<List<Map<String, dynamic>>> usersFuture;
   String usersQuery = '';
@@ -635,6 +637,7 @@ class _AcademyHomeState extends State<AcademyHome> {
     super.initState();
     _loadCourses();
     learningCoursesFuture = _loadLearningCourses();
+    certificatesFuture = _loadMyCertificates();
     dashboardStatsFuture = _loadDashboardStats();
     usersFuture = widget.role == 'admin' ? _loadUsers() : Future.value([]);
   }
@@ -674,7 +677,7 @@ class _AcademyHomeState extends State<AcademyHome> {
       final id = row['id'] as String?;
       final total = id == null ? 0 : (lessonCounts[id] ?? 0);
       final completed = id == null ? 0 : (completedCounts[id] ?? 0);
-      final progress = total == 0 ? 0.0 : (completed / total).clamp(0.0, 1.0).toDouble();
+      final progress = calculateCourseProgress(completedLessons: completed, totalLessons: total);
       return Course(
         row['title'] as String? ?? '',
         'دورة تعليمية',
@@ -2738,7 +2741,12 @@ class _AcademyHomeState extends State<AcademyHome> {
           ],
         ),
       );
-      if (mounted) setState(() {});
+      if (mounted) {
+        setState(() {
+          certificatesFuture = _loadMyCertificates();
+          learningCoursesFuture = _loadLearningCourses();
+        });
+      }
     } catch (error) {
       final message = error is PostgrestException ? error.message : error.toString();
       _message('لم تصدر الشهادة بعد: $message');
@@ -2806,7 +2814,6 @@ class _AcademyHomeState extends State<AcademyHome> {
   }
 
   Widget _certificatesPage() {
-    final certificatesFuture = _loadMyCertificates();
     return ListView(
       padding: const EdgeInsets.all(24),
       children: [
