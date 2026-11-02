@@ -75,7 +75,7 @@ flutter build web --release \
 
 ## قاعدة البيانات
 
-ملفات التغييرات المتسلسلة موجودة في `supabase/migrations/` من `0001` إلى `0025`. راجع [دليل إعداد Supabase](docs/SUPABASE_SETUP.md) قبل تطبيقها على مشروع جديد.
+ملفات التغييرات المتسلسلة موجودة في `supabase/migrations/` من `0001` إلى `0026`. راجع [دليل إعداد Supabase](docs/SUPABASE_SETUP.md) قبل تطبيقها على مشروع جديد.
 
 ## النشر
 
@@ -114,4 +114,4 @@ flutter build web --release \
 
 ## اختبارات الأمان
 
-بعد تطبيق ترحيلات Supabase، شغّل [اختبار الأمان للقراءة فقط](supabase/tests/security_smoke_test.sql) من SQL Editor للتحقق من صلاحيات الشهادات وRLS.
+بعد تطبيق ترحيلات Supabase من `0001` إلى `0026`، شغّل [اختبار الأمان للقراءة فقط](supabase/tests/security_smoke_test.sql) من SQL Editor للتحقق من صلاحيات الشهادات وRLS.
