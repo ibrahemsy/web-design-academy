@@ -676,6 +676,8 @@ class _AcademyHomeState extends State<AcademyHome> {
     final title = TextEditingController();
     final prompt = TextEditingController();
     final options = List.generate(4, (_) => TextEditingController());
+    final passingScoreController = TextEditingController(text: '50');
+    final maxAttemptsController = TextEditingController();
     int correct = 0;
     bool saving = false;
     final created = await showDialog<bool>(
@@ -706,21 +708,40 @@ class _AcademyHomeState extends State<AcademyHome> {
                 items: List.generate(4, (i) => DropdownMenuItem(value: i, child: Text('الخيار ${i + 1}'))),
                 onChanged: saving ? null : (v) => refresh(() => correct = v ?? 0),
               ),
+              const SizedBox(height: 12),
+              TextField(controller: passingScoreController, keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'درجة النجاح (%)', helperText: 'من 0 إلى 100')),
+              TextField(controller: maxAttemptsController, keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'الحد الأقصى للمحاولات', helperText: 'اتركه فارغاً للمحاولات غير المحدودة')),
             ],
           ))),
           actions: [
             TextButton(onPressed: saving ? null : () => Navigator.pop(dialogContext, false), child: const Text('إلغاء')),
             FilledButton(
               onPressed: saving ? null : () async {
+                final passingScore = int.tryParse(passingScoreController.text.trim());
+                final maxAttemptsText = maxAttemptsController.text.trim();
+                final maxAttempts = maxAttemptsText.isEmpty ? null : int.tryParse(maxAttemptsText);
                 if (courseId == null || title.text.trim().isEmpty || prompt.text.trim().isEmpty ||
                     options.any((o) => o.text.trim().isEmpty)) {
                   _message('أكمل عنوان الاختبار والسؤال والخيارات الأربعة.');
                   return;
                 }
+                if (passingScore == null || passingScore < 0 || passingScore > 100) {
+                  _message('درجة النجاح يجب أن تكون بين 0 و100.');
+                  return;
+                }
+                if (maxAttemptsText.isNotEmpty && (maxAttempts == null || maxAttempts < 1 || maxAttempts > 50)) {
+                  _message('عدد المحاولات يجب أن يكون بين 1 و50، أو اتركه فارغاً.');
+                  return;
+                }
                 refresh(() => saving = true);
                 try {
                   final quiz = await supabase.from('quizzes').insert({
-                    'course_id': courseId, 'title': title.text.trim(),
+                    'course_id': courseId,
+                    'title': title.text.trim(),
+                    'passing_score': passingScore,
+                    'max_attempts': maxAttempts,
                   }).select('id').single();
                   try {
                     await supabase.from('quiz_questions').insert({
@@ -748,6 +769,8 @@ class _AcademyHomeState extends State<AcademyHome> {
     );
     title.dispose();
     prompt.dispose();
+    passingScoreController.dispose();
+    maxAttemptsController.dispose();
     for (final option in options) { option.dispose(); }
     if (created == true && mounted) _message('تم إنشاء الاختبار وإضافة السؤال الأول. يمكنك إضافة أسئلة أخرى من صفحة الدورة.');
   }
@@ -802,46 +825,62 @@ class _AcademyHomeState extends State<AcademyHome> {
     if (added == true && mounted) _message('تمت إضافة السؤال.');
   }
 
-  Future<void> _renameQuiz(String quizId, String currentTitle) async {
-    final title = TextEditingController(text: currentTitle);
+  Future<void> _editQuizSettings(Map<String, dynamic> quiz) async {
+    final quizId = quiz['id'] as String;
+    final title = TextEditingController(text: quiz['title']?.toString() ?? '');
+    final passingScore = TextEditingController(text: (quiz['passing_score'] as num?)?.toInt().toString() ?? '50');
+    final maxAttempts = TextEditingController(text: (quiz['max_attempts'] as num?)?.toInt().toString() ?? '');
     final saved = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('تعديل عنوان الاختبار'),
-        content: SizedBox(
-          width: 420,
-          child: TextField(
-            controller: title,
-            autofocus: true,
-            maxLength: 100,
-            decoration: const InputDecoration(labelText: 'عنوان الاختبار'),
-          ),
-        ),
+        title: const Text('إعدادات الاختبار'),
+        content: SizedBox(width: 440, child: Column(mainAxisSize: MainAxisSize.min, children: [
+          TextField(controller: title, maxLength: 100,
+            decoration: const InputDecoration(labelText: 'عنوان الاختبار')),
+          TextField(controller: passingScore, keyboardType: TextInputType.number,
+            decoration: const InputDecoration(labelText: 'درجة النجاح (%)', helperText: 'من 0 إلى 100')),
+          TextField(controller: maxAttempts, keyboardType: TextInputType.number,
+            decoration: const InputDecoration(labelText: 'الحد الأقصى للمحاولات', helperText: 'اتركه فارغاً للمحاولات غير المحدودة')),
+        ])),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('إلغاء')),
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('إلغاء')),
           FilledButton(
             onPressed: () async {
+              final pass = int.tryParse(passingScore.text.trim());
+              final maxText = maxAttempts.text.trim();
+              final max = maxText.isEmpty ? null : int.tryParse(maxText);
               if (title.text.trim().length < 2) {
                 _message('أدخل عنواناً صحيحاً للاختبار.');
+                return;
+              }
+              if (pass == null || pass < 0 || pass > 100) {
+                _message('درجة النجاح يجب أن تكون بين 0 و100.');
+                return;
+              }
+              if (maxText.isNotEmpty && (max == null || max < 1 || max > 50)) {
+                _message('عدد المحاولات يجب أن يكون بين 1 و50، أو اتركه فارغاً.');
                 return;
               }
               try {
                 await supabase.from('quizzes').update({
                   'title': title.text.trim(),
+                  'passing_score': pass,
+                  'max_attempts': max,
                 }).eq('id', quizId);
                 if (dialogContext.mounted) Navigator.pop(dialogContext, true);
               } catch (error) {
-                _message('تعذر تعديل الاختبار: $error');
+                _message('تعذر حفظ إعدادات الاختبار: $error');
               }
             },
-            child: const Text('حفظ'),
+            child: const Text('حفظ الإعدادات'),
           ),
         ],
       ),
     );
     title.dispose();
-    if (saved == true && mounted) _message('تم تحديث عنوان الاختبار.');
+    passingScore.dispose();
+    maxAttempts.dispose();
+    if (saved == true && mounted) _message('تم تحديث إعدادات الاختبار.');
   }
 
   Future<void> _editQuizQuestion(Map<String, dynamic> question) async {
@@ -2109,7 +2148,7 @@ class _AcademyHomeState extends State<AcademyHome> {
       .eq('student_id', supabase.auth.currentUser!.id)
       .maybeSingle().then((row) => row != null);
     Future<List<Map<String, dynamic>>> quizzesFuture = supabase.from('quizzes')
-      .select('id,title').eq('course_id', course.id!).order('created_at');
+      .select('id,title,passing_score,max_attempts').eq('course_id', course.id!).order('created_at');
 
     showModalBottomSheet(
       context: context,
@@ -2244,16 +2283,13 @@ class _AcademyHomeState extends State<AcademyHome> {
                           trailing: widget.isTeacher
                             ? Row(mainAxisSize: MainAxisSize.min, children: [
                                 IconButton(
-                                  icon: const Icon(Icons.drive_file_rename_outline),
-                                  tooltip: 'تعديل عنوان الاختبار',
+                                  icon: const Icon(Icons.settings_outlined),
+                                  tooltip: 'إعدادات الاختبار',
                                   onPressed: () async {
-                                    await _renameQuiz(
-                                      quiz['id'] as String,
-                                      quiz['title'] as String? ?? 'اختبار',
-                                    );
+                                    await _editQuizSettings(quiz);
                                     refreshSheet(() {
                                       quizzesFuture = supabase.from('quizzes')
-                                        .select('id,title').eq('course_id', course.id!)
+                                        .select('id,title,passing_score,max_attempts').eq('course_id', course.id!)
                                         .order('created_at');
                                     });
                                   },
