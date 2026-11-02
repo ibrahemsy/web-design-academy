@@ -449,13 +449,18 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
       if (!completed) return;
     }
 
+    // Capture controller values before scheduling the asynchronous write;
+    // dispose() may release the video controller while the request is pending.
+    final watchedSeconds = _controller.value.position.inSeconds;
+    final updatedAt = DateTime.now().toIso8601String();
+    final isCompleted = completed || _completed;
     final save = Future<void>(() async {
       await supabase.from('lesson_progress').upsert({
         'lesson_id': widget.lessonId,
         'student_id': user.id,
-        'completed': completed || _completed,
-        'watched_seconds': _controller.value.position.inSeconds,
-        'updated_at': DateTime.now().toIso8601String(),
+        'completed': isCompleted,
+        'watched_seconds': watchedSeconds,
+        'updated_at': updatedAt,
       }, onConflict: 'lesson_id,student_id');
     });
     _progressSaveTask = save;
