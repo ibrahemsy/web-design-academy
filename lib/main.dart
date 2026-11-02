@@ -368,7 +368,11 @@ class _AcademyHomeState extends State<AcademyHome> {
           status: row['status'] as String? ?? 'published',
         );
       }).toList();
-      if (mounted) setState(() { remoteCourses = loaded; coursesLoading = false; });
+      if (mounted) setState(() {
+        remoteCourses = loaded;
+        coursesLoading = false;
+        dashboardStatsFuture = _loadDashboardStats();
+      });
     } catch (_) {
       if (mounted) setState(() => coursesLoading = false);
     }
@@ -889,6 +893,7 @@ class _AcademyHomeState extends State<AcademyHome> {
                               if (mounted) {
                                 setState(() {
                                   learningCoursesFuture = _loadLearningCourses();
+                                  dashboardStatsFuture = _loadDashboardStats();
                                 });
                               }
                               refreshSheet(() {
