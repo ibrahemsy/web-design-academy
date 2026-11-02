@@ -355,3 +355,15 @@ using (bucket_id = 'course-videos' and exists (
 -- Bootstrap the first administrator manually after registering an account:
 -- update public.profiles set role = 'admin' where id = '<AUTH_USER_UUID>';
 -- Run that statement only in the Supabase SQL Editor as the project owner.
+
+
+-- Explicit Data API privileges for the academy tables.
+-- Row Level Security remains enabled and is the authorization boundary.
+grant usage on schema public to anon, authenticated;
+grant select on public.courses, public.lessons to anon;
+grant select, insert, update, delete on public.profiles to authenticated;
+grant select, insert, update, delete on public.courses, public.lessons,
+  public.enrollments, public.lesson_progress, public.quizzes,
+  public.quiz_questions, public.quiz_attempts to authenticated;
+grant execute on function public.is_admin() to anon, authenticated;
+grant execute on function public.is_teacher_or_admin() to anon, authenticated;
