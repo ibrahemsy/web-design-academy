@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -343,22 +345,40 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
   bool _savingProgress = false;
   bool _completed = false;
 
-  Future<void> _markCompleted() async {
-    setState(() => _savingProgress = true);
+  Future<void> _saveWatchPosition({bool completed = false}) async {
+    if (!widget.allowProgress) return;
+    final user = supabase.auth.currentUser;
+    if (user == null) return;
     try {
       await supabase.from('lesson_progress').upsert({
         'lesson_id': widget.lessonId,
-        'student_id': supabase.auth.currentUser!.id,
-        'completed': true,
+        'student_id': user.id,
+        'completed': completed || _completed,
         'watched_seconds': _controller.value.position.inSeconds,
         'updated_at': DateTime.now().toIso8601String(),
       }, onConflict: 'lesson_id,student_id');
+    } catch (_) {
+      // Playback should not stop because a progress update failed.
+    }
+  }
+
+  Future<void> _markCompleted() async {
+    if (!widget.allowProgress || _savingProgress || _completed) return;
+    setState(() => _savingProgress = true);
+    try {
+      await _saveWatchPosition(completed: true);
       if (mounted) setState(() => _completed = true);
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('تم حفظ تقدمك في هذا الدرس.')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تم حفظ تقدمك في هذا الدرس.')),
+        );
+      }
     } catch (error) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('تعذر حفظ التقدم: ' + error.toString())));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('تعذر حفظ التقدم: $error')),
+        );
+      }
     } finally {
       if (mounted) setState(() => _savingProgress = false);
     }
@@ -394,6 +414,9 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
 
   @override
   void dispose() {
+    if (widget.allowProgress) {
+      unawaited(_saveWatchPosition());
+    }
     _controller.dispose();
     super.dispose();
   }
@@ -433,13 +456,15 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
                 ),
               IconButton(
                 iconSize: 42,
-                onPressed: () => setState(() {
+                onPressed: () {
                   if (_controller.value.isPlaying) {
                     _controller.pause();
+                    unawaited(_saveWatchPosition());
                   } else {
                     _controller.play();
                   }
-                }),
+                  setState(() {});
+                },
                 icon: Icon(_controller.value.isPlaying ? Icons.pause_circle : Icons.play_circle),
               ),
             ]);
