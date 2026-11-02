@@ -48,7 +48,7 @@ verifier_migration = MIGRATIONS / "0027_restrict_direct_private_certificate_veri
 if not verifier_migration.exists():
     fail("Private certificate verification migration 0027 is missing")
 verifier_sql = verifier_migration.read_text(encoding="utf-8")
-if "revoke all on function private.verify_course_certificate(text)" not in private_access_sql.lower():
+if "revoke all on function private.verify_course_certificate(text)" not in verifier_sql.lower():
     fail("Migration 0027 must revoke direct access to the private certificate verifier")
 required_fragments = (
     "security definer",
