@@ -432,13 +432,23 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
   Timer? _progressSaveTimer;
   Future<void>? _progressSaveTask;
 
-  Future<void> _saveWatchPosition({bool completed = false, bool suppressErrors = false}) async {
+  Future<void> _saveWatchPosition({
+    bool completed = false,
+    bool suppressErrors = false,
+    bool force = false,
+  }) async {
     if (!widget.allowProgress) return;
     final user = supabase.auth.currentUser;
     if (user == null || !_controller.value.isInitialized) return;
 
-    // Avoid overlapping writes. A completion write waits for an in-flight
-    // periodic save, then writes the final completed state itself.
+    // Capture the final position before awaiting another write. In dispose(),
+    // the video controller is released immediately after this method is called.
+    final watchedSeconds = _controller.value.position.inSeconds;
+    final updatedAt = DateTime.now().toIso8601String();
+    final isCompleted = completed || _completed;
+
+    // Avoid overlapping writes. A completion/final-dispose write waits for an
+    // in-flight periodic save and then persists its own captured snapshot.
     final pending = _progressSaveTask;
     if (pending != null) {
       try {
@@ -446,14 +456,8 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
       } catch (_) {
         if (!suppressErrors && !completed) rethrow;
       }
-      if (!completed) return;
+      if (!completed && !force) return;
     }
-
-    // Capture controller values before scheduling the asynchronous write;
-    // dispose() may release the video controller while the request is pending.
-    final watchedSeconds = _controller.value.position.inSeconds;
-    final updatedAt = DateTime.now().toIso8601String();
-    final isCompleted = completed || _completed;
     final save = Future<void>(() async {
       await supabase.from('lesson_progress').upsert({
         'lesson_id': widget.lessonId,
@@ -536,7 +540,7 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
   void dispose() {
     _progressSaveTimer?.cancel();
     if (widget.allowProgress) {
-      unawaited(_saveWatchPosition(suppressErrors: true));
+      unawaited(_saveWatchPosition(suppressErrors: true, force: true));
     }
     _controller.dispose();
     super.dispose();
