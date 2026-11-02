@@ -2142,6 +2142,22 @@ class _AcademyHomeState extends State<AcademyHome> {
                 Chip(label: Text('طلاب: $students')),
                 Chip(label: Text('مدرّسون: $teachers')),
                 Chip(label: Text('مديرون: $admins')),
+                OutlinedButton.icon(
+                  onPressed: allUsers.isEmpty ? null : () {
+                    final csv = [
+                      ['display_name', 'role', 'created_at'].join(','),
+                      ...allUsers.map((user) => [
+                        _csvCell(user['display_name']),
+                        _csvCell(user['role']),
+                        _csvCell(user['created_at']),
+                      ].join(',')),
+                    ].join('\\n');
+                    _downloadCsv('academy-users.csv', csv);
+                    _message('تم تنزيل تقرير المستخدمين بصيغة CSV.');
+                  },
+                  icon: const Icon(Icons.download_outlined),
+                  label: const Text('تنزيل قائمة المستخدمين'),
+                ),
               ]),
               const SizedBox(height: 10),
               if (users.isEmpty)
