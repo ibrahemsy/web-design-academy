@@ -38,6 +38,12 @@ if not latest.exists():
     fail("Latest certificate entropy migration is missing")
 
 latest_sql = latest.read_text(encoding="utf-8")
+private_access_migration = MIGRATIONS / "0026_revoke_direct_private_certificate_report_access.sql"
+if not private_access_migration.exists():
+    fail("Private certificate report access migration 0026 is missing")
+private_access_sql = private_access_migration.read_text(encoding="utf-8")
+if "revoke all on function private.get_course_certificate_report(uuid)" not in private_access_sql.lower():
+    fail("Migration 0026 must revoke direct access to the private certificate report RPC")
 required_fragments = (
     "security definer",
     "set search_path = ''",
@@ -61,6 +67,9 @@ for fragment in (
     "public.get_course_certificate_report(uuid)",
     "private.get_course_certificate_report(uuid)",
     "pg_catalog.gen_random_uuid()",
+    "storage.buckets",
+    "course-videos",
+    "eligible users read course videos",
 ):
     if fragment not in smoke:
         fail(f"Security smoke test is missing assertion: {fragment}")
