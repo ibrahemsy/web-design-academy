@@ -13,7 +13,7 @@ begin
   select (
     b.public = false
     and b.file_size_limit = 524288000
-    and b.allowed_mime_types @> array['video/mp4', 'video/webm', 'video/quicktime']::text[]
+    and b.allowed_mime_types = array['video/mp4', 'video/webm', 'video/quicktime']::text[]
   ) into v_bucket_ok
   from storage.buckets b
   where b.id = 'course-videos';
