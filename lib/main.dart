@@ -511,13 +511,14 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
           .eq('lesson_id', widget.lessonId)
           .eq('student_id', supabase.auth.currentUser!.id)
           .maybeSingle();
-      if (row == null) return;
-      final seconds = (row['watched_seconds'] as num?)?.toInt() ?? 0;
-      final duration = _controller.value.duration.inSeconds;
-      if (seconds > 0 && seconds < duration && row['completed'] != true) {
-        await _controller.seekTo(Duration(seconds: seconds));
+      if (row != null) {
+        final seconds = (row['watched_seconds'] as num?)?.toInt() ?? 0;
+        final duration = _controller.value.duration.inSeconds;
+        if (seconds > 0 && seconds < duration && row['completed'] != true) {
+          await _controller.seekTo(Duration(seconds: seconds));
+        }
+        _completed = row['completed'] == true;
       }
-      _completed = row['completed'] == true;
     } catch (_) {
       // Video playback remains available even if progress history cannot load.
     }
