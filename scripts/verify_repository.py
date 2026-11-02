@@ -58,6 +58,7 @@ for fragment in (
     "public.issue_course_certificate(uuid)",
     "public.get_my_course_certificates()",
     "public.verify_course_certificate(text)",
+    "public.get_course_certificate_report(uuid)",
     "pg_catalog.gen_random_uuid()",
 ):
     if fragment not in smoke:
