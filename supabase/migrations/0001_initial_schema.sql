@@ -171,12 +171,12 @@ language sql
 stable
 security definer
 set search_path = ''
-as $
+as $$
   select exists (
     select 1 from public.profiles p
     where p.id = auth.uid() and p.role = 'admin'::public.user_role
   );
-$;
+$$;
 
 create or replace function public.is_teacher_or_admin()
 returns boolean
@@ -184,13 +184,13 @@ language sql
 stable
 security definer
 set search_path = ''
-as $
+as $$
   select exists (
     select 1 from public.profiles p
     where p.id = auth.uid()
       and p.role in ('teacher'::public.user_role, 'admin'::public.user_role)
   );
-$;
+$$;
 
 -- Profiles: users can read their own profile; teachers/admins can see enrolled learners
 -- through application-specific reporting added in a later migration.
