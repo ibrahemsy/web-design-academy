@@ -466,6 +466,8 @@ class _AcademyHomeState extends State<AcademyHome> {
   bool coursesLoading = true;
   late Future<List<Course>> learningCoursesFuture;
   late Future<Map<String, int>> dashboardStatsFuture;
+  late Future<List<Map<String, dynamic>>> usersFuture;
+  String usersQuery = '';
 
   @override
   void initState() {
@@ -473,6 +475,7 @@ class _AcademyHomeState extends State<AcademyHome> {
     _loadCourses();
     learningCoursesFuture = _loadLearningCourses();
     dashboardStatsFuture = _loadDashboardStats();
+    usersFuture = widget.role == 'admin' ? _loadUsers() : Future.value([]);
   }
 
   Future<List<Course>> _loadLearningCourses() async {
@@ -549,6 +552,27 @@ class _AcademyHomeState extends State<AcademyHome> {
       });
     } catch (_) {
       if (mounted) setState(() => coursesLoading = false);
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> _loadUsers() async {
+    final rows = await supabase.from('profiles')
+        .select('id,display_name,role,created_at')
+        .order('created_at', ascending: false);
+    return (rows as List).map((row) => Map<String, dynamic>.from(row)).toList();
+  }
+
+  Future<void> _changeUserRole(String userId, String role) async {
+    try {
+      await supabase.rpc('set_academy_user_role', params: {
+        'p_target_user_id': userId,
+        'p_new_role': role,
+      });
+      if (!mounted) return;
+      setState(() => usersFuture = _loadUsers());
+      _message('تم تحديث صلاحية المستخدم.');
+    } catch (error) {
+      _message('تعذر تغيير الصلاحية: $error');
     }
   }
 
@@ -1532,6 +1556,8 @@ class _AcademyHomeState extends State<AcademyHome> {
             NavigationDestination(icon: const Icon(Icons.menu_book_rounded), label: t('الدورات', 'Courses')),
             NavigationDestination(icon: const Icon(Icons.play_circle_outline), label: t('تعلمي', 'Learning')),
             NavigationDestination(icon: const Icon(Icons.person_outline), label: t('حسابي', 'Profile')),
+            if (widget.role == 'admin')
+              NavigationDestination(icon: const Icon(Icons.manage_accounts_outlined), label: t('المستخدمون', 'Users')),
           ],
         ),
       ),
@@ -1549,6 +1575,8 @@ class _AcademyHomeState extends State<AcademyHome> {
       _navItem(1, Icons.menu_book_rounded, t('استكشاف الدورات', 'Explore courses')),
       _navItem(2, Icons.play_circle_outline, t('متابعة التعلم', 'My learning')),
       _navItem(3, Icons.person_outline, t('الملف الشخصي', 'Profile')),
+      if (widget.role == 'admin')
+        _navItem(4, Icons.manage_accounts_outlined, t('إدارة المستخدمين', 'User management')),
       const Spacer(),
       Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: const Color(0xFFF0EFFF), borderRadius: BorderRadius.circular(16)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -1578,8 +1606,108 @@ class _AcademyHomeState extends State<AcademyHome> {
     if (selected == 1) return _coursesPage();
     if (selected == 2) return _learningPage();
     if (selected == 3) return _profilePage();
+    if (selected == 4 && widget.role == 'admin') return _usersPage();
     return _dashboard();
   }
+
+  Widget _usersPage() => ListView(
+    padding: const EdgeInsets.all(24),
+    children: [
+      _sectionTitle(t('إدارة المستخدمين', 'User management')),
+      const SizedBox(height: 8),
+      Text(
+        t('غيّر أدوار الحسابات من لوحة المدير. لا يمكن إزالة صلاحية آخر مدير في النظام.',
+          'Manage account roles. The last administrator cannot be demoted.'),
+        style: const TextStyle(color: Colors.blueGrey),
+      ),
+      const SizedBox(height: 16),
+      TextField(
+        onChanged: (value) => setState(() => usersQuery = value.trim().toLowerCase()),
+        decoration: InputDecoration(
+          hintText: t('ابحث بالاسم أو معرّف الحساب...', 'Search name or user ID...'),
+          prefixIcon: const Icon(Icons.search),
+          filled: true,
+          fillColor: Colors.white,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+        ),
+      ),
+      const SizedBox(height: 16),
+      FutureBuilder<List<Map<String, dynamic>>>(
+        future: usersFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: Padding(
+              padding: EdgeInsets.all(24), child: CircularProgressIndicator()));
+          }
+          if (snapshot.hasError) {
+            return const Text('تعذر تحميل المستخدمين. تأكد من صلاحيات المدير واتصال قاعدة البيانات.');
+          }
+          final allUsers = snapshot.data ?? [];
+          final users = allUsers.where((user) {
+            final name = user['display_name']?.toString().toLowerCase() ?? '';
+            final id = user['id']?.toString().toLowerCase() ?? '';
+            return usersQuery.isEmpty || name.contains(usersQuery) || id.contains(usersQuery);
+          }).toList();
+          final students = allUsers.where((user) => user['role'] == 'student').length;
+          final teachers = allUsers.where((user) => user['role'] == 'teacher').length;
+          final admins = allUsers.where((user) => user['role'] == 'admin').length;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Wrap(spacing: 8, runSpacing: 8, children: [
+                Chip(label: Text('الإجمالي: ${allUsers.length}')),
+                Chip(label: Text('طلاب: $students')),
+                Chip(label: Text('مدرّسون: $teachers')),
+                Chip(label: Text('مديرون: $admins')),
+              ]),
+              const SizedBox(height: 10),
+              if (users.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.all(20),
+                  child: Text('لا توجد حسابات مطابقة لبحثك.'),
+                ),
+              ...users.map((user) {
+                final id = user['id']?.toString() ?? '';
+                final role = user['role']?.toString() ?? 'student';
+                final name = user['display_name']?.toString().trim();
+                final roleName = role == 'admin' ? 'مدير' : role == 'teacher' ? 'مدرّس' : 'طالب';
+                return Card(
+                  elevation: 0,
+                  color: Colors.white,
+                  margin: const EdgeInsets.only(bottom: 8),
+                  child: ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: const Color(0xFFE8E7FF),
+                      child: Icon(
+                        role == 'admin' ? Icons.admin_panel_settings
+                            : role == 'teacher' ? Icons.cast_for_education : Icons.person_outline,
+                        color: purple,
+                      ),
+                    ),
+                    title: Text(name?.isNotEmpty == true ? name! : 'مستخدم الأكاديمية'),
+                    subtitle: Text('$roleName • ${id.length > 12 ? id.substring(0, 12) : id}'),
+                    trailing: PopupMenuButton<String>(
+                      tooltip: 'تغيير الصلاحية',
+                      onSelected: (value) => _changeUserRole(id, value),
+                      itemBuilder: (_) => const [
+                        PopupMenuItem(value: 'student', child: Text('طالب')),
+                        PopupMenuItem(value: 'teacher', child: Text('مدرّس')),
+                        PopupMenuItem(value: 'admin', child: Text('مدير')),
+                      ],
+                      child: const Padding(
+                        padding: EdgeInsets.all(8),
+                        child: Icon(Icons.more_vert),
+                      ),
+                    ),
+                  ),
+                );
+              }),
+            ],
+          );
+        },
+      ),
+    ],
+  );
 
   Widget _dashboard() => ListView(padding: const EdgeInsets.all(24), children: [
     if (!widget.isTeacher) _hero(),
