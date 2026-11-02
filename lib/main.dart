@@ -2256,16 +2256,19 @@ class _AcademyHomeState extends State<AcademyHome> {
       completed += (student['completed_lessons'] as num?)?.toInt() ?? 0;
       total += (student['total_lessons'] as num?)?.toInt() ?? 0;
     }
+    final attemptsByQuiz = await Future.wait(quizzes.map((quiz) async {
+      final quizId = quiz['id']?.toString();
+      if (quizId == null) return <Map<String, dynamic>>[];
+      final rawAttempts = await supabase.rpc(
+        'get_quiz_results_for_teacher', params: {'p_quiz_id': quizId});
+      return (rawAttempts as List)
+          .map((item) => Map<String, dynamic>.from(item as Map)).toList();
+    }));
     var attempts = 0;
     var passed = 0;
     var scoreTotal = 0.0;
-    for (final quiz in quizzes) {
-      final quizId = quiz['id']?.toString();
-      if (quizId == null) continue;
-      final rawAttempts = await supabase.rpc(
-        'get_quiz_results_for_teacher', params: {'p_quiz_id': quizId});
-      for (final item in rawAttempts as List) {
-        final attempt = Map<String, dynamic>.from(item as Map);
+    for (final quizAttempts in attemptsByQuiz) {
+      for (final attempt in quizAttempts) {
         attempts++;
         if (attempt['passed'] == true) passed++;
         scoreTotal += (attempt['score'] as num?)?.toDouble() ?? 0;
