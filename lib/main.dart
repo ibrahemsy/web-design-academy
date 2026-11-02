@@ -1,6 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-void main() => runApp(const WebDesignAcademy());
+const supabaseUrl = String.fromEnvironment(
+  'SUPABASE_URL',
+  defaultValue: 'https://dgeohwxzleznygmfjfdq.supabase.co',
+);
+const supabasePublishableKey = String.fromEnvironment(
+  'SUPABASE_PUBLISHABLE_KEY',
+  defaultValue: 'sb_publishable_8keAnBnVzcVWY7cDGDrlHQ_JWIyYOVO',
+);
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Supabase.initialize(url: supabaseUrl, publishableKey: supabasePublishableKey);
+  runApp(const WebDesignAcademy());
+}
+
+final supabase = Supabase.instance.client;
 
 const ink = Color(0xFF17243B);
 const navy = Color(0xFF101B32);
@@ -22,7 +38,7 @@ class WebDesignAcademy extends StatelessWidget {
         fontFamily: 'Arial',
         appBarTheme: const AppBarTheme(backgroundColor: canvas, foregroundColor: ink, elevation: 0),
       ),
-      home: const AcademyHome(),
+      home: const AuthGate(),
     );
   }
 }
@@ -43,15 +59,153 @@ const courses = [
   Course('JavaScript التفاعلية', 'برمجة الويب', 'أضف التفاعل والحركة والمنطق إلى صفحات الويب.', '18 درساً', 'متوسط', Icons.bolt, Color(0xFFF2B544), 0),
 ];
 
+
+class AuthGate extends StatelessWidget {
+  const AuthGate({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<AuthState>(
+      stream: supabase.auth.onAuthStateChange,
+      builder: (context, snapshot) {
+        final user = supabase.auth.currentUser;
+        if (user == null) return const AuthScreen();
+        return FutureBuilder(
+          future: supabase.from('profiles').select('role').eq('id', user.id).maybeSingle(),
+          builder: (context, profile) {
+            if (profile.connectionState == ConnectionState.waiting) {
+              return const Scaffold(body: Center(child: CircularProgressIndicator()));
+            }
+            final role = profile.data?['role'] as String? ?? 'student';
+            return AcademyHome(isTeacher: role == 'teacher' || role == 'admin');
+          },
+        );
+      },
+    );
+  }
+}
+
+class AuthScreen extends StatefulWidget {
+  const AuthScreen({super.key});
+  @override
+  State<AuthScreen> createState() => _AuthScreenState();
+}
+
+class _AuthScreenState extends State<AuthScreen> {
+  final _email = TextEditingController();
+  final _password = TextEditingController();
+  final _name = TextEditingController();
+  bool _register = false;
+  bool _busy = false;
+  bool _hidePassword = true;
+
+  @override
+  void dispose() {
+    _email.dispose();
+    _password.dispose();
+    _name.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (_email.text.trim().isEmpty || _password.text.length < 6 ||
+        (_register && _name.text.trim().isEmpty)) {
+      _show('أدخل البريد وكلمة مرور من 6 أحرف على الأقل، والاسم عند التسجيل.');
+      return;
+    }
+    setState(() => _busy = true);
+    try {
+      if (_register) {
+        await supabase.auth.signUp(
+          email: _email.text.trim(),
+          password: _password.text,
+          data: {'display_name': _name.text.trim()},
+        );
+        _show('تم إرسال طلب التسجيل. تحقق من بريدك إذا كان تأكيد البريد مفعّلاً.');
+      } else {
+        await supabase.auth.signInWithPassword(
+          email: _email.text.trim(),
+          password: _password.text,
+        );
+      }
+    } on AuthException catch (e) {
+      _show(e.message);
+    } catch (e) {
+      _show('تعذر إكمال العملية. تحقق من اتصال الإنترنت وإعدادات المشروع.');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  void _show(String value) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value)));
+  }
+
+  @override
+  Widget build(BuildContext context) => Directionality(
+    textDirection: TextDirection.rtl,
+    child: Scaffold(
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 430),
+            child: Card(
+              elevation: 0,
+              color: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+              child: Padding(
+                padding: const EdgeInsets.all(28),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                  const Icon(Icons.school_rounded, color: purple, size: 54),
+                  const SizedBox(height: 14),
+                  const Text('أكاديمية تصميم الويب',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 23, fontWeight: FontWeight.w800, color: ink)),
+                  const SizedBox(height: 8),
+                  Text(_register ? 'أنشئ حسابك وابدأ رحلة التعلم' : 'سجّل الدخول لمتابعة تعلمك',
+                    textAlign: TextAlign.center, style: const TextStyle(color: Colors.blueGrey)),
+                  const SizedBox(height: 24),
+                  if (_register) ...[
+                    TextField(controller: _name, decoration: const InputDecoration(labelText: 'الاسم', prefixIcon: Icon(Icons.person_outline))),
+                    const SizedBox(height: 12),
+                  ],
+                  TextField(controller: _email, keyboardType: TextInputType.emailAddress,
+                    decoration: const InputDecoration(labelText: 'البريد الإلكتروني', prefixIcon: Icon(Icons.email_outlined))),
+                  const SizedBox(height: 12),
+                  TextField(controller: _password, obscureText: _hidePassword,
+                    decoration: InputDecoration(labelText: 'كلمة المرور', prefixIcon: const Icon(Icons.lock_outline),
+                      suffixIcon: IconButton(icon: Icon(_hidePassword ? Icons.visibility : Icons.visibility_off),
+                        onPressed: () => setState(() => _hidePassword = !_hidePassword))),
+                    onSubmitted: (_) => _busy ? null : _submit()),
+                  const SizedBox(height: 20),
+                  FilledButton(
+                    onPressed: _busy ? null : _submit,
+                    child: _busy ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                      : Text(_register ? 'إنشاء حساب' : 'تسجيل الدخول')),
+                  TextButton(
+                    onPressed: _busy ? null : () => setState(() => _register = !_register),
+                    child: Text(_register ? 'لديك حساب؟ سجّل الدخول' : 'ليس لديك حساب؟ أنشئ حساباً جديداً')),
+                ]),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
 class AcademyHome extends StatefulWidget {
-  const AcademyHome({super.key});
+  final bool isTeacher;
+  const AcademyHome({super.key, required this.isTeacher});
   @override
   State<AcademyHome> createState() => _AcademyHomeState();
 }
 
 class _AcademyHomeState extends State<AcademyHome> {
   int selected = 0;
-  bool isTeacher = false;
   bool english = false;
   String query = '';
 
@@ -76,7 +230,7 @@ class _AcademyHomeState extends State<AcademyHome> {
             const SizedBox(width: 8),
             Padding(padding: const EdgeInsetsDirectional.only(end: 14),
               child: CircleAvatar(backgroundColor: const Color(0xFFE8E7FF),
-                child: Icon(isTeacher ? Icons.cast_for_education : Icons.person, color: purple))),
+                child: Icon(widget.isTeacher ? Icons.cast_for_education : Icons.person, color: purple))),
           ],
         ),
         body: Row(children: [
@@ -141,8 +295,8 @@ class _AcademyHomeState extends State<AcademyHome> {
   }
 
   Widget _dashboard() => ListView(padding: const EdgeInsets.all(24), children: [
-    if (!isTeacher) _hero(),
-    if (isTeacher) _teacherPanel(),
+    if (!widget.isTeacher) _hero(),
+    if (widget.isTeacher) _teacherPanel(),
     const SizedBox(height: 26),
     Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
       Text(t('دورات مقترحة لك', 'Recommended courses'), style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w800, color: ink)),
@@ -243,8 +397,9 @@ class _AcademyHomeState extends State<AcademyHome> {
     Text(t('متعلم جديد', 'New learner'), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
     Text(t('عضو في أكاديمية تصميم الويب', 'Web Design Academy member'), style: const TextStyle(color: Colors.blueGrey)),
     const SizedBox(height: 24),
-    SwitchListTile(title: Text(t('الدخول بوضع المدرّس', 'Teacher mode')), value: isTeacher,
-      onChanged: (v) => setState(() => isTeacher = v)),
+    ListTile(leading: const Icon(Icons.verified_user_outlined), title: Text(widget.isTeacher ? t('حساب مدرّس', 'Teacher account') : t('حساب طالب', 'Student account'))),
+    ListTile(leading: const Icon(Icons.logout), title: Text(t('تسجيل الخروج', 'Sign out')),
+      onTap: () async { await supabase.auth.signOut(); }),
     SwitchListTile(title: Text(t('English interface', 'الواجهة العربية')), value: english,
       onChanged: (v) => setState(() => english = v)),
   ]);
