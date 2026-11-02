@@ -26,6 +26,7 @@ MAIN_DART = ROOT / "lib" / "main.dart"
 WORKFLOW = ROOT / ".github" / "workflows" / "deploy.yml"
 PUBSPEC = ROOT / "pubspec.yaml"
 DEPLOYMENT_SMOKE_TEST = ROOT / "scripts" / "smoke_test_deployment.py"
+BROWSER_SMOKE_TEST = ROOT / "scripts" / "smoke_test_browser.mjs"
 
 def fail(message: str) -> None:
     print(f"FAIL: {message}", file=sys.stderr)
@@ -98,6 +99,8 @@ if not TEST_SQL.exists():
     fail("Supabase security smoke test is missing")
 if not DEPLOYMENT_SMOKE_TEST.exists():
     fail("Deployed website HTTP smoke test is missing")
+if not BROWSER_SMOKE_TEST.exists():
+    fail("Deployed website Chromium smoke test is missing")
 try:
     compile(DEPLOYMENT_SMOKE_TEST.read_text(encoding="utf-8"), str(DEPLOYMENT_SMOKE_TEST), "exec")
 except SyntaxError as error:
@@ -123,8 +126,10 @@ if not WORKFLOW.exists():
 workflow_text = WORKFLOW.read_text(encoding="utf-8")
 if "flutter test" not in workflow_text:
     fail("GitHub Actions must run Flutter unit tests")
-if "Smoke test deployed website" not in workflow_text or "python3 scripts/smoke_test_deployment.py" not in workflow_text:
+if "python3 scripts/smoke_test_deployment.py" not in workflow_text:
     fail("GitHub Pages deployment must run the deployed website HTTP smoke test")
+if "Smoke test deployed website in Chromium" not in workflow_text or "node scripts/smoke_test_browser.mjs" not in workflow_text:
+    fail("GitHub Pages deployment must launch the published Flutter app in Chromium")
 smoke = TEST_SQL.read_text(encoding="utf-8")
 for fragment in (
     "relrowsecurity",
