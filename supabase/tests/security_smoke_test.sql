@@ -38,6 +38,17 @@ begin
   if not has_function_privilege('anon', 'public.verify_course_certificate(text)', 'EXECUTE') then
     raise exception 'FAIL: public certificate verification must be available to anon';
   end if;
+  -- Certificate reports are private to the owning teacher or an administrator.
+  if not has_function_privilege('authenticated', 'public.get_course_certificate_report(uuid)', 'EXECUTE') then
+    raise exception 'FAIL: authenticated role must execute the guarded course certificate report';
+  end if;
+  if has_function_privilege('anon', 'public.get_course_certificate_report(uuid)', 'EXECUTE') then
+    raise exception 'FAIL: anon role must not execute the course certificate report';
+  end if;
+  if has_function_privilege('anon', 'private.get_course_certificate_report(uuid)', 'EXECUTE')
+     or has_function_privilege('authenticated', 'private.get_course_certificate_report(uuid)', 'EXECUTE') then
+    raise exception 'FAIL: private certificate report implementation must not be directly executable';
+  end if;
 
   -- Confirm that the installed issuance function uses a 32-hex-character
   -- cryptographically random suffix (122 random bits), rather than the former 12-character UUID suffix.
