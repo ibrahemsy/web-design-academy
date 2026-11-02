@@ -5,6 +5,7 @@ do $audit$
 declare
   v_rls_enabled boolean;
   v_definition text;
+  v_public_definition text;
   v_bucket_ok boolean;
   v_storage_policy_count integer;
 begin
@@ -65,8 +66,26 @@ begin
   if has_function_privilege('anon', 'public.get_my_course_certificates()', 'EXECUTE') then
     raise exception 'FAIL: anon role must not list certificates';
   end if;
-  if not has_function_privilege('anon', 'public.verify_course_certificate(text)', 'EXECUTE') then
-    raise exception 'FAIL: public certificate verification must be available to anon';
+  if not has_function_privilege('anon', 'public.verify_course_certificate(text)', 'EXECUTE')
+     or not has_function_privilege('authenticated', 'public.verify_course_certificate(text)', 'EXECUTE') then
+    raise exception 'FAIL: public certificate verification must be available through the public RPC';
+  end if;
+  if has_function_privilege('anon', 'private.verify_course_certificate(text)', 'EXECUTE')
+     or has_function_privilege('authenticated', 'private.verify_course_certificate(text)', 'EXECUTE') then
+    raise exception 'FAIL: private certificate verification implementation must not be directly executable';
+  end if;
+
+  select pg_get_functiondef(p.oid) into v_public_definition
+  from pg_proc p
+  join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'public'
+    and p.proname = 'verify_course_certificate'
+    and p.pronargs = 1;
+
+  if v_public_definition is null
+     or position('SECURITY DEFINER' in upper(v_public_definition)) = 0
+     or position('SET search_path TO ''''' in v_public_definition) = 0 then
+    raise exception 'FAIL: public certificate verification RPC must use SECURITY DEFINER and an empty search_path';
   end if;
   -- Certificate reports are private to the owning teacher or an administrator.
   if not has_function_privilege('authenticated', 'public.get_course_certificate_report(uuid)', 'EXECUTE') then
