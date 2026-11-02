@@ -440,8 +440,10 @@ class _AcademyHomeState extends State<AcademyHome> {
   Future<void> _createQuiz({String? initialCourseId}) async {
     final currentUser = supabase.auth.currentUser;
     if (currentUser == null) return;
-    final ownedCourses = await supabase.from('courses')
-      .select('id,title').eq('teacher_id', currentUser.id).order('created_at', ascending: false);
+    final ownedCourses = widget.role == 'admin'
+      ? await supabase.from('courses').select('id,title').order('created_at', ascending: false)
+      : await supabase.from('courses').select('id,title')
+          .eq('teacher_id', currentUser.id).order('created_at', ascending: false);
     if (ownedCourses.isEmpty) {
       _message('أنشئ دورة أولاً قبل إنشاء اختبار.');
       return;
