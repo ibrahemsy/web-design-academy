@@ -1475,6 +1475,9 @@ class _AcademyHomeState extends State<AcademyHome> {
         }).eq('id', lessonId);
       } catch (_) {
         await supabase.from('lessons').update({
+          'position': targetPosition,
+        }).eq('id', target['id']);
+        await supabase.from('lessons').update({
           'position': currentPosition,
         }).eq('id', lessonId);
         rethrow;
