@@ -1161,6 +1161,67 @@ class _AcademyHomeState extends State<AcademyHome> {
     }
   }
 
+  Future<void> _showCourseStudents(String courseId, String courseTitle) async {
+    try {
+      final raw = await supabase.rpc(
+        'get_course_students',
+        params: {'p_course_id': courseId},
+      );
+      final rows = (raw as List)
+          .map((row) => Map<String, dynamic>.from(row as Map)).toList();
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text('طلاب دورة: $courseTitle'),
+          content: SizedBox(
+            width: 560,
+            child: rows.isEmpty
+                ? const Text('لم يلتحق أي طالب بهذه الدورة بعد.')
+                : ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: rows.length,
+                    separatorBuilder: (_, __) => const Divider(),
+                    itemBuilder: (context, index) {
+                      final row = rows[index];
+                      final completed = (row['completed_lessons'] as num?)?.toInt() ?? 0;
+                      final total = (row['total_lessons'] as num?)?.toInt() ?? 0;
+                      final progress = total == 0 ? 0.0 : (completed / total).clamp(0.0, 1.0).toDouble();
+                      final date = DateTime.tryParse(row['enrolled_at']?.toString() ?? '');
+                      return ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const CircleAvatar(child: Icon(Icons.person_outline)),
+                        title: Text(row['student_name']?.toString() ?? 'طالب'),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(date == null
+                                ? 'تاريخ التسجيل غير متاح'
+                                : 'تاريخ التسجيل: ${date.toLocal().toString().substring(0, 10)}'),
+                            const SizedBox(height: 5),
+                            Text('الدروس المكتملة: $completed من $total'),
+                            const SizedBox(height: 4),
+                            LinearProgressIndicator(value: progress, minHeight: 5),
+                          ],
+                        ),
+                        trailing: Text('${(progress * 100).round()}%'),
+                      );
+                    },
+                  ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('إغلاق'),
+            ),
+          ],
+        ),
+      );
+    } catch (error) {
+      _message('تعذر تحميل قائمة الطلاب: $error');
+    }
+  }
+
   Future<void> _showQuizResults(String quizId, String quizTitle) async {
     try {
       final raw = await supabase.rpc('get_quiz_results_for_teacher', params: {'p_quiz_id': quizId});
@@ -2054,6 +2115,11 @@ class _AcademyHomeState extends State<AcademyHome> {
                         onPressed: () => _editCourse(course),
                         icon: const Icon(Icons.edit_outlined),
                         label: const Text('تعديل الدورة'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: () => _showCourseStudents(course.id!, course.title),
+                        icon: const Icon(Icons.groups_outlined),
+                        label: const Text('الطلاب والتقدم'),
                       ),
                       if (course.status != 'published')
                         OutlinedButton.icon(
