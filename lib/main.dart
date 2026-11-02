@@ -429,12 +429,27 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
   late final Future<void> _initialize;
   bool _savingProgress = false;
   bool _completed = false;
+  Timer? _progressSaveTimer;
+  Future<void>? _progressSaveTask;
 
   Future<void> _saveWatchPosition({bool completed = false, bool suppressErrors = false}) async {
     if (!widget.allowProgress) return;
     final user = supabase.auth.currentUser;
-    if (user == null) return;
-    try {
+    if (user == null || !_controller.value.isInitialized) return;
+
+    // Avoid overlapping writes. A completion write waits for an in-flight
+    // periodic save, then writes the final completed state itself.
+    final pending = _progressSaveTask;
+    if (pending != null) {
+      try {
+        await pending;
+      } catch (_) {
+        if (!suppressErrors && !completed) rethrow;
+      }
+      if (!completed) return;
+    }
+
+    final save = Future<void>(() async {
       await supabase.from('lesson_progress').upsert({
         'lesson_id': widget.lessonId,
         'student_id': user.id,
@@ -442,8 +457,14 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
         'watched_seconds': _controller.value.position.inSeconds,
         'updated_at': DateTime.now().toIso8601String(),
       }, onConflict: 'lesson_id,student_id');
+    });
+    _progressSaveTask = save;
+    try {
+      await save;
     } catch (_) {
       if (!suppressErrors) rethrow;
+    } finally {
+      if (identical(_progressSaveTask, save)) _progressSaveTask = null;
     }
   }
 
@@ -495,10 +516,19 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
     } catch (_) {
       // Video playback remains available even if progress history cannot load.
     }
+
+    // Persist watch position during playback so a closed tab or lost connection
+    // does not discard the entire viewing session.
+    _progressSaveTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+      if (mounted && _controller.value.isPlaying) {
+        unawaited(_saveWatchPosition(suppressErrors: true));
+      }
+    });
   }
 
   @override
   void dispose() {
+    _progressSaveTimer?.cancel();
     if (widget.allowProgress) {
       unawaited(_saveWatchPosition(suppressErrors: true));
     }
