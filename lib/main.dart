@@ -571,6 +571,10 @@ class AcademyHome extends StatefulWidget {
 class _AcademyHomeState extends State<AcademyHome> {
   int selected = 0;
   bool english = false;
+  bool studentMode = false;
+
+  bool get _teacherMode => widget.isTeacher && !studentMode;
+  bool get _studentMode => !widget.isTeacher || studentMode;
   String query = '';
   List<Course> remoteCourses = [];
   bool coursesLoading = true;
@@ -2016,12 +2020,28 @@ class _AcademyHomeState extends State<AcademyHome> {
               onPressed: _refreshAll,
               icon: const Icon(Icons.refresh),
             ),
+            if (widget.isTeacher)
+              TextButton.icon(
+                tooltip: t('التبديل بين وضع المدرّس ووضع التعلّم', 'Switch between teacher and learning modes'),
+                onPressed: () => setState(() {
+                  studentMode = !studentMode;
+                  selected = 0;
+                  if (studentMode) {
+                    learningCoursesFuture = _loadLearningCourses();
+                    dashboardStatsFuture = _loadDashboardStats();
+                  }
+                }),
+                icon: Icon(studentMode ? Icons.cast_for_education : Icons.school_outlined, size: 18),
+                label: Text(studentMode
+                    ? t('وضع المدرّس', 'Teacher mode')
+                    : t('وضع الطالب', 'Student mode')),
+              ),
             TextButton.icon(onPressed: () => setState(() => english = !english),
               icon: const Icon(Icons.translate, size: 18), label: Text(english ? 'العربية' : 'EN')),
             const SizedBox(width: 8),
             Padding(padding: const EdgeInsetsDirectional.only(end: 14),
               child: CircleAvatar(backgroundColor: const Color(0xFFE8E7FF),
-                child: Icon(widget.isTeacher ? Icons.cast_for_education : Icons.person, color: purple))),
+                child: Icon(_teacherMode ? Icons.cast_for_education : Icons.person, color: purple))),
           ],
         ),
         body: Row(children: [
@@ -2209,8 +2229,8 @@ class _AcademyHomeState extends State<AcademyHome> {
   );
 
   Widget _dashboard() => ListView(padding: const EdgeInsets.all(24), children: [
-    if (!widget.isTeacher) _hero(),
-    if (widget.isTeacher) ...[
+    if (_studentMode) _hero(),
+    if (_teacherMode) ...[
       _teacherPanel(),
       const SizedBox(height: 18),
       _teachingOverview(),
@@ -2854,7 +2874,7 @@ class _AcademyHomeState extends State<AcademyHome> {
       trailing: const Icon(Icons.chevron_left),
       onTap: _editDisplayName,
     ),
-    if (!widget.isTeacher)
+    if (_studentMode)
       ListTile(
         leading: const Icon(Icons.history_edu_outlined),
         title: const Text('سجل نتائج اختباراتي'),
@@ -2943,7 +2963,7 @@ class _AcademyHomeState extends State<AcademyHome> {
                   const SizedBox(height: 12),
                   Text(course.description),
                   const SizedBox(height: 18),
-                  if (widget.isTeacher) ...[
+                  if (_teacherMode) ...[
                     Wrap(spacing: 8, runSpacing: 8, children: [
                       FilledButton.icon(
                         onPressed: () async {
@@ -3030,7 +3050,7 @@ class _AcademyHomeState extends State<AcademyHome> {
                   const Divider(height: 28),
                   Row(children: [
                     const Expanded(child: Text('اختبارات الدورة', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold))),
-                    if (widget.isTeacher)
+                    if (_teacherMode)
                       TextButton.icon(
                         onPressed: () async {
                           await _createQuiz(initialCourseId: course.id);
@@ -3055,12 +3075,12 @@ class _AcademyHomeState extends State<AcademyHome> {
                           leading: const Icon(Icons.quiz_outlined, color: purple),
                           title: Text(quiz['title'] as String? ?? 'اختبار'),
                           subtitle: Text(
-                            widget.isTeacher
+                            _teacherMode
                               ? 'إدارة الأسئلة'
                               : 'درجة النجاح: ${quiz['passing_score'] ?? 50}%'
                                 '${quiz['max_attempts'] == null ? '' : ' • الحد: ${quiz['max_attempts']} محاولات'}',
                           ),
-                          trailing: widget.isTeacher
+                          trailing: _teacherMode
                             ? Row(mainAxisSize: MainAxisSize.min, children: [
                                 IconButton(
                                   icon: const Icon(Icons.settings_outlined),
@@ -3097,7 +3117,7 @@ class _AcademyHomeState extends State<AcademyHome> {
                                   }),
                               ])
                             : const Icon(Icons.chevron_left),
-                          onTap: widget.isTeacher ? null : () => _openQuiz(quiz['id'] as String),
+                          onTap: _teacherMode ? null : () => _openQuiz(quiz['id'] as String),
                         ),
                       )).toList());
                     },
@@ -3124,7 +3144,7 @@ class _AcademyHomeState extends State<AcademyHome> {
                           subtitle: Text((lesson['description'] as String? ?? '').isEmpty
                             ? (lesson['video_path'] == null ? 'درس نصي' : 'يتضمن فيديو')
                             : lesson['description'] as String),
-                          trailing: widget.isTeacher
+                          trailing: _teacherMode
                             ? PopupMenuButton<String>(
                                 tooltip: 'إجراءات الدرس',
                                 onSelected: (value) async {
@@ -3162,7 +3182,7 @@ class _AcademyHomeState extends State<AcademyHome> {
                               return;
                             }
                             try {
-                              final canTrackProgress = !widget.isTeacher && await enrollmentFuture;
+                              final canTrackProgress = _studentMode && await enrollmentFuture;
                               final url = await supabase.storage.from('course-videos')
                                 .createSignedUrl(path, 3600);
                               if (!context.mounted) return;
