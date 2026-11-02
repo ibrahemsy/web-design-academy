@@ -680,6 +680,48 @@ class _AcademyHomeState extends State<AcademyHome> {
     if (added == true && mounted) _message('تمت إضافة السؤال.');
   }
 
+  Future<void> _renameQuiz(String quizId, String currentTitle) async {
+    final title = TextEditingController(text: currentTitle);
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('تعديل عنوان الاختبار'),
+        content: SizedBox(
+          width: 420,
+          child: TextField(
+            controller: title,
+            autofocus: true,
+            maxLength: 100,
+            decoration: const InputDecoration(labelText: 'عنوان الاختبار'),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('إلغاء')),
+          FilledButton(
+            onPressed: () async {
+              if (title.text.trim().length < 2) {
+                _message('أدخل عنواناً صحيحاً للاختبار.');
+                return;
+              }
+              try {
+                await supabase.from('quizzes').update({
+                  'title': title.text.trim(),
+                }).eq('id', quizId);
+                if (dialogContext.mounted) Navigator.pop(dialogContext, true);
+              } catch (error) {
+                _message('تعذر تعديل الاختبار: $error');
+              }
+            },
+            child: const Text('حفظ'),
+          ),
+        ],
+      ),
+    );
+    title.dispose();
+    if (saved == true && mounted) _message('تم تحديث عنوان الاختبار.');
+  }
+
   Future<void> _editQuizQuestion(Map<String, dynamic> question) async {
     final id = question['id'] as String?;
     if (id == null) return;
@@ -793,15 +835,53 @@ class _AcademyHomeState extends State<AcademyHome> {
                       leading: CircleAvatar(child: Text('${index + 1}')),
                       title: Text(question['prompt']?.toString() ?? 'سؤال'),
                       subtitle: Text('${opts.length} خيارات'),
-                      trailing: IconButton(
-                        tooltip: 'تعديل السؤال',
-                        icon: const Icon(Icons.edit_outlined),
-                        onPressed: () async {
-                          await _editQuizQuestion(question);
-                          if (dialogContext.mounted) {
-                            refresh(() => questionsFuture = loadQuestions());
-                          }
-                        },
+                      trailing: Wrap(
+                        spacing: 0,
+                        children: [
+                          IconButton(
+                            tooltip: 'تعديل السؤال',
+                            icon: const Icon(Icons.edit_outlined),
+                            onPressed: () async {
+                              await _editQuizQuestion(question);
+                              if (dialogContext.mounted) {
+                                refresh(() => questionsFuture = loadQuestions());
+                              }
+                            },
+                          ),
+                          IconButton(
+                            tooltip: 'حذف السؤال',
+                            icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+                            onPressed: () async {
+                              final confirmed = await showDialog<bool>(
+                                context: dialogContext,
+                                builder: (confirmContext) => AlertDialog(
+                                  title: const Text('حذف السؤال'),
+                                  content: const Text('هل تريد حذف هذا السؤال نهائياً؟'),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(confirmContext, false),
+                                      child: const Text('إلغاء'),
+                                    ),
+                                    FilledButton(
+                                      onPressed: () => Navigator.pop(confirmContext, true),
+                                      child: const Text('حذف'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                              if (confirmed != true) return;
+                              try {
+                                await supabase.from('quiz_questions')
+                                    .delete().eq('id', question['id']);
+                                if (dialogContext.mounted) {
+                                  refresh(() => questionsFuture = loadQuestions());
+                                }
+                              } catch (error) {
+                                _message('تعذر حذف السؤال: $error');
+                              }
+                            },
+                          ),
+                        ],
                       ),
                     );
                   },
@@ -1700,6 +1780,21 @@ class _AcademyHomeState extends State<AcademyHome> {
                           subtitle: Text(widget.isTeacher ? 'إدارة الأسئلة' : 'ابدأ الاختبار'),
                           trailing: widget.isTeacher
                             ? Row(mainAxisSize: MainAxisSize.min, children: [
+                                IconButton(
+                                  icon: const Icon(Icons.drive_file_rename_outline),
+                                  tooltip: 'تعديل عنوان الاختبار',
+                                  onPressed: () async {
+                                    await _renameQuiz(
+                                      quiz['id'] as String,
+                                      quiz['title'] as String? ?? 'اختبار',
+                                    );
+                                    refreshSheet(() {
+                                      quizzesFuture = supabase.from('quizzes')
+                                        .select('id,title').eq('course_id', course.id!)
+                                        .order('created_at');
+                                    });
+                                  },
+                                ),
                                 IconButton(
                                   icon: const Icon(Icons.edit_note_outlined),
                                   tooltip: 'إدارة أسئلة الاختبار',
