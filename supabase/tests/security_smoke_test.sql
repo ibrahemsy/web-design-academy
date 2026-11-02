@@ -1,5 +1,5 @@
 -- Supabase security smoke test for Web Design Academy.
--- Run AFTER applying migrations 0001-0025 in the Supabase SQL Editor.
+-- Run AFTER applying migrations 0001-0026 in the Supabase SQL Editor.
 -- Read-only: this script creates no objects and changes no data.
 do $audit$
 declare
