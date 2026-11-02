@@ -267,7 +267,7 @@ class _AuthScreenState extends State<AuthScreen> {
                 onChanged: (_) => refresh(() {}),
                 decoration: const InputDecoration(
                   labelText: 'رمز الشهادة',
-                  hintText: 'WDA-XXXXXXXXXXXX',
+                  hintText: 'WDA-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',
                   prefixIcon: Icon(Icons.verified_outlined),
                 ),
               ),
