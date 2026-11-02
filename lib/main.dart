@@ -1451,6 +1451,76 @@ class _AcademyHomeState extends State<AcademyHome> {
     }
   }
 
+  Future<void> _moveLesson(String courseId, String lessonId, int direction) async {
+    try {
+      final rows = await supabase.from('lessons')
+          .select('id,position').eq('course_id', courseId).order('position');
+      final lessons = (rows as List).map((row) => Map<String, dynamic>.from(row)).toList();
+      final index = lessons.indexWhere((row) => row['id'] == lessonId);
+      final targetIndex = index + direction;
+      if (index < 0 || targetIndex < 0 || targetIndex >= lessons.length) return;
+      final current = lessons[index];
+      final target = lessons[targetIndex];
+      final currentPosition = (current['position'] as num).toInt();
+      final targetPosition = (target['position'] as num).toInt();
+      await supabase.from('lessons').update({
+        'position': -currentPosition - 1,
+      }).eq('id', lessonId);
+      try {
+        await supabase.from('lessons').update({
+          'position': currentPosition,
+        }).eq('id', target['id']);
+        await supabase.from('lessons').update({
+          'position': targetPosition,
+        }).eq('id', lessonId);
+      } catch (_) {
+        await supabase.from('lessons').update({
+          'position': currentPosition,
+        }).eq('id', lessonId);
+        rethrow;
+      }
+      if (mounted) _message('تم تغيير ترتيب الدرس.');
+    } catch (error) {
+      _message('تعذر تغيير ترتيب الدرس: $error');
+    }
+  }
+
+  Future<void> _deleteLesson(Map<String, dynamic> lesson) async {
+    final lessonId = lesson['id'] as String?;
+    if (lessonId == null) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('حذف الدرس'),
+        content: Text('سيُحذف الدرس «${lesson['title'] ?? ''}» وسجل تقدم الطلاب المرتبط به. هل تريد المتابعة؟'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('إلغاء')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('حذف الدرس'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    final path = lesson['video_path']?.toString();
+    try {
+      await supabase.from('lessons').delete().eq('id', lessonId);
+      if (path != null && path.isNotEmpty) {
+        try {
+          await supabase.storage.from('course-videos').remove([path]);
+        } catch (_) {
+          _message('حُذف الدرس، لكن تعذر حذف ملف الفيديو من التخزين.');
+        }
+      }
+      if (mounted) _message('تم حذف الدرس.');
+    } catch (error) {
+      _message('تعذر حذف الدرس: $error');
+    }
+  }
+
   Future<void> _editLesson(Map<String, dynamic> lesson) async {
     final lessonId = lesson['id'] as String?;
     if (lessonId == null) return;
@@ -2136,11 +2206,31 @@ class _AcademyHomeState extends State<AcademyHome> {
                           trailing: widget.isTeacher
                             ? PopupMenuButton<String>(
                                 tooltip: 'إجراءات الدرس',
-                                onSelected: (value) {
-                                  if (value == 'edit') _editLesson(lesson);
+                                onSelected: (value) async {
+                                  if (value == 'edit') {
+                                    await _editLesson(lesson);
+                                  } else if (value == 'up' || value == 'down') {
+                                    await _moveLesson(
+                                      course.id!,
+                                      lesson['id'] as String,
+                                      value == 'up' ? -1 : 1,
+                                    );
+                                  } else if (value == 'delete') {
+                                    await _deleteLesson(lesson);
+                                  }
+                                  if (sheetContext.mounted) {
+                                    refreshSheet(() {
+                                      lessonsFuture = supabase.from('lessons')
+                                        .select('id,title,description,video_path,is_preview,position')
+                                        .eq('course_id', course.id!).order('position');
+                                    });
+                                  }
                                 },
                                 itemBuilder: (_) => const [
                                   PopupMenuItem(value: 'edit', child: Text('تعديل الدرس')),
+                                  PopupMenuItem(value: 'up', child: Text('تحريك للأعلى')),
+                                  PopupMenuItem(value: 'down', child: Text('تحريك للأسفل')),
+                                  PopupMenuItem(value: 'delete', child: Text('حذف الدرس')),
                                 ],
                               )
                             : const Icon(Icons.chevron_left),
