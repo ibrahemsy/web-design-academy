@@ -360,7 +360,7 @@ class _AcademyHomeState extends State<AcademyHome> {
     ]));
 
   Widget _teacherAction(IconData icon, String label) => OutlinedButton.icon(
-    onPressed: () => _message(t('ستتوفر إدارة المحتوى بعد ربط قاعدة البيانات.', 'Content management will be enabled after database setup.')),
+    onPressed: () => _message(t('قاعدة البيانات مرتبطة؛ واجهة إدارة المحتوى قيد التجهيز.', 'The database is connected; content management screens are still being built.')),
     icon: Icon(icon, color: Colors.white), label: Text(label, style: const TextStyle(color: Colors.white)),
     style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.white38)));
 
@@ -458,7 +458,7 @@ class _AcademyHomeState extends State<AcademyHome> {
           _lessonTile('تطبيق عملي', course.title, Icons.assignment_outlined),
           const SizedBox(height: 12),
           SizedBox(width: double.infinity, child: FilledButton.icon(
-            onPressed: () { Navigator.pop(context); _message(t('سيتم فتح مشغل الدروس عند ربط المحتوى.', 'Lesson player will be available when content is connected.')); },
+            onPressed: () { Navigator.pop(context); _message(t('مشغل الدروس سيعمل بعد إضافة الدروس والفيديوهات الفعلية.', 'The lesson player will work after real lessons and videos are added.')); },
             icon: const Icon(Icons.play_arrow), label: Text(t('ابدأ التعلم', 'Start learning')))),
         ])))),
   );
