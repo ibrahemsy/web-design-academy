@@ -20,4 +20,27 @@ void main() {
       expect(isValidPasswordPair(' 123456', '123456'), isFalse);
     });
   });
+
+  group('buildAcademyRedirectUrl', () {
+    test('preserves the GitHub Pages project path', () {
+      expect(
+        buildAcademyRedirectUrl(Uri.parse('https://ibrahemsy.github.io/web-design-academy/')),
+        'https://ibrahemsy.github.io/web-design-academy/',
+      );
+    });
+
+    test('preserves local development ports and paths', () {
+      expect(
+        buildAcademyRedirectUrl(Uri.parse('http://localhost:51234/preview/')),
+        'http://localhost:51234/preview/',
+      );
+    });
+
+    test('removes query parameters and fragments from the callback', () {
+      expect(
+        buildAcademyRedirectUrl(Uri.parse('https://example.com/app/?token=secret#recovery')),
+        'https://example.com/app/',
+      );
+    });
+  });
 }
