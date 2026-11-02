@@ -232,22 +232,22 @@ using (
   and (
     exists (select 1 from public.courses c where c.id = course_id and c.teacher_id = auth.uid())
     or exists (select 1 from public.enrollments e where e.course_id = course_id and e.student_id = auth.uid())
-    or exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
+    or public.is_admin()
   )
 );
 create policy "course teachers manage lessons" on public.lessons
 for all to authenticated
 using (exists (select 1 from public.courses c where c.id = course_id and
-  (c.teacher_id = auth.uid() or exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin'))))
+  (c.teacher_id = auth.uid() or public.is_admin())))
 with check (exists (select 1 from public.courses c where c.id = course_id and
-  (c.teacher_id = auth.uid() or exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin'))));
+  (c.teacher_id = auth.uid() or public.is_admin())));
 
 -- Students can enroll themselves in published courses. Teachers/admins can inspect course enrollments.
 create policy "enrollments read self or course owner" on public.enrollments
 for select to authenticated
 using (student_id = auth.uid() or exists (
   select 1 from public.courses c where c.id = course_id and c.teacher_id = auth.uid()
-) or exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin'));
+) or public.is_admin());
 create policy "students enroll themselves" on public.enrollments
 for insert to authenticated
 with check (student_id = auth.uid() and exists (
@@ -268,28 +268,28 @@ create policy "quizzes visible for published enrolled courses" on public.quizzes
 for select to authenticated
 using (exists (select 1 from public.courses c where c.id = course_id and
   (c.teacher_id = auth.uid() or exists (select 1 from public.enrollments e where e.course_id = c.id and e.student_id = auth.uid())
-   or exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin'))));
+   or public.is_admin())));
 create policy "course teachers manage quizzes" on public.quizzes
 for all to authenticated
 using (exists (select 1 from public.courses c where c.id = course_id and
-  (c.teacher_id = auth.uid() or exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin'))))
+  (c.teacher_id = auth.uid() or public.is_admin())))
 with check (exists (select 1 from public.courses c where c.id = course_id and
-  (c.teacher_id = auth.uid() or exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin'))));
+  (c.teacher_id = auth.uid() or public.is_admin())));
 
 -- Do not expose correct answers to student clients. A later API/RPC can grade attempts.
 create policy "quiz questions visible to course teachers" on public.quiz_questions
 for select to authenticated
 using (exists (select 1 from public.quizzes q join public.courses c on c.id = q.course_id
   where q.id = quiz_id and (c.teacher_id = auth.uid()
-    or exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin'))));
+    or public.is_admin())));
 create policy "quiz questions managed by course teachers" on public.quiz_questions
 for all to authenticated
 using (exists (select 1 from public.quizzes q join public.courses c on c.id = q.course_id
   where q.id = quiz_id and (c.teacher_id = auth.uid()
-    or exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin'))))
+    or public.is_admin())))
 with check (exists (select 1 from public.quizzes q join public.courses c on c.id = q.course_id
   where q.id = quiz_id and (c.teacher_id = auth.uid()
-    or exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin'))));
+    or public.is_admin())));
 
 create policy "students read own quiz attempts" on public.quiz_attempts
 for select to authenticated using (student_id = auth.uid());
@@ -319,7 +319,7 @@ using (
       where e.course_id::text = (storage.foldername(name))[1]
       and e.student_id = auth.uid()
     )
-    or exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
+    or public.is_admin()
   )
 );
 
