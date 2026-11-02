@@ -2198,11 +2198,14 @@ class _AcademyHomeState extends State<AcademyHome> {
     final results = await Future.wait([
       supabase.rpc('get_course_students', params: {'p_course_id': courseId}),
       supabase.rpc('get_course_certificate_report', params: {'p_course_id': courseId}),
+      supabase.from('quizzes').select('id').eq('course_id', courseId),
     ]);
     final students = (results[0] as List)
         .map((row) => Map<String, dynamic>.from(row as Map)).toList();
     final certificates = (results[1] as List)
         .map((row) => Map<String, dynamic>.from(row as Map)).toList();
+    final quizzes = (results[2] as List)
+        .map((row) => Map<String, dynamic>.from(row)).toList();
     final issued = certificates.where((row) => row['certificate_issued'] == true).length;
     var completed = 0;
     var total = 0;
@@ -2210,12 +2213,31 @@ class _AcademyHomeState extends State<AcademyHome> {
       completed += (student['completed_lessons'] as num?)?.toInt() ?? 0;
       total += (student['total_lessons'] as num?)?.toInt() ?? 0;
     }
+    var attempts = 0;
+    var passed = 0;
+    var scoreTotal = 0.0;
+    for (final quiz in quizzes) {
+      final quizId = quiz['id']?.toString();
+      if (quizId == null) continue;
+      final rawAttempts = await supabase.rpc(
+        'get_quiz_results_for_teacher', params: {'p_quiz_id': quizId});
+      for (final item in rawAttempts as List) {
+        final attempt = Map<String, dynamic>.from(item as Map);
+        attempts++;
+        if (attempt['passed'] == true) passed++;
+        scoreTotal += (attempt['score'] as num?)?.toDouble() ?? 0;
+      }
+    }
     final progress = total == 0 ? 0 : (completed * 100 / total).round();
     return {
       'students': students.length,
       'issued': issued,
       'pending': students.length - issued,
       'progress': progress,
+      'quizzes': quizzes.length,
+      'attempts': attempts,
+      'passed': passed,
+      'average_score': attempts == 0 ? 0 : (scoreTotal / attempts).round(),
     };
   }
 
@@ -2306,6 +2328,14 @@ class _AcademyHomeState extends State<AcademyHome> {
                               label: Text('الشهادات: ${data['issued'] ?? 0}')),
                             Chip(avatar: const Icon(Icons.hourglass_empty, size: 17),
                               label: Text('قيد الإكمال: ${data['pending'] ?? 0}')),
+                            Chip(avatar: const Icon(Icons.quiz_outlined, size: 17),
+                              label: Text('الاختبارات: ${data['quizzes'] ?? 0}')),
+                            Chip(avatar: const Icon(Icons.assignment_turned_in_outlined, size: 17),
+                              label: Text('المحاولات: ${data['attempts'] ?? 0}')),
+                            Chip(avatar: const Icon(Icons.check_circle_outline, size: 17),
+                              label: Text('اجتياز: ${data['passed'] ?? 0}')),
+                            Chip(avatar: const Icon(Icons.grade_outlined, size: 17),
+                              label: Text('متوسط الدرجات: ${data['average_score'] ?? 0}%')),
                           ]);
                         },
                       ),
