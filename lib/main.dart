@@ -519,7 +519,7 @@ class _AuthScreenState extends State<AuthScreen> {
                 child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                   const Icon(Icons.school_rounded, color: purple, size: 54),
                   const SizedBox(height: 14),
-                  const Text('أكاديمية تصميم الويب',
+                  const Text('الأكاديمية البرمجية i.z',
                     textAlign: TextAlign.center,
                     style: TextStyle(fontSize: 23, fontWeight: FontWeight.w800, color: ink)),
                   const SizedBox(height: 8),
