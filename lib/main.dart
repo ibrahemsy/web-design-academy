@@ -1,7 +1,6 @@
 import 'dart:async';
-import 'dart:js_interop';
-
-import 'package:web/web.dart' as web;
+import 'platform/platform_actions_stub.dart'
+    if (dart.library.js_interop) 'platform/platform_actions_web.dart' as platformActions;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -60,7 +59,7 @@ class WebDesignAcademy extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'أكاديمية تصميم الويب',
+      title: 'الأكاديمية البرمجية i.z',
       theme: ThemeData(
         useMaterial3: true,
         scaffoldBackgroundColor: canvas,
@@ -2787,7 +2786,7 @@ class _AcademyHomeState extends State<AcademyHome> {
     return (raw as List).map((row) => Map<String, dynamic>.from(row as Map)).toList();
   }
 
-  void _printCertificate(Map<String, dynamic> certificate) {
+  Future<void> _printCertificate(Map<String, dynamic> certificate) {
     final student = htmlEscapeText(certificate['student_name']);
     final course = htmlEscapeText(certificate['course_title']);
     final code = htmlEscapeText(certificate['certificate_code']);
@@ -2797,12 +2796,7 @@ class _AcademyHomeState extends State<AcademyHome> {
           ? '—'
           : '${issuedAt.toLocal().year}-${issuedAt.toLocal().month.toString().padLeft(2, '0')}-${issuedAt.toLocal().day.toString().padLeft(2, '0')}',
     );
-    final printWindow = web.window.open('', '_blank');
-    if (printWindow == null) {
-      _message('اسمح بالنوافذ المنبثقة لتنزيل الشهادة بصيغة PDF.');
-      return;
-    }
-    printWindow.document.write('''
+    final html = '''
 <!doctype html>
 <html lang="ar" dir="rtl">
 <head>
@@ -2835,10 +2829,10 @@ class _AcademyHomeState extends State<AcademyHome> {
 </head>
 <body>
 <main class="sheet">
-  <div class="brand">WEB DESIGN ACADEMY</div>
+  <div class="brand">I.Z PROGRAMMING ACADEMY</div>
   <div class="seal">✦</div>
   <h1>شهادة إتمام دورة</h1>
-  <p class="intro">تشهد أكاديمية تصميم الويب بأن المتعلم / المتعلمة</p>
+  <p class="intro">تشهد الأكاديمية البرمجية i.z بأن المتعلم / المتعلمة</p>
   <div class="student">$student</div>
   <p class="intro">قد أتم بنجاح المتطلبات التعليمية للدورة</p>
   <div class="course">$course</div>
@@ -2846,16 +2840,17 @@ class _AcademyHomeState extends State<AcademyHome> {
   <section class="meta">
     <div><strong>تاريخ الإصدار</strong><br>$issued</div>
     <div><strong>رمز التحقق</strong><br><span class="code">$code</span></div>
-    <div><strong>الجهة المصدرة</strong><br>أكاديمية تصميم الويب</div>
+    <div><strong>الجهة المصدرة</strong><br>الأكاديمية البرمجية i.z</div>
   </section>
   <div class="footer">يمكن التحقق من صحة هذه الشهادة باستخدام رمز التحقق من داخل الأكاديمية.</div>
 </main>
 </body>
 </html>
-'''.toJS);
-    printWindow.document.close();
-    printWindow.focus();
-    printWindow.print();
+''';
+    final printed = await platformActions.printHtmlDocument(html);
+    if (!printed && mounted) {
+      _message('تم نسخ محتوى الشهادة. يمكنك حفظها أو طباعتها من تطبيق المستندات.');
+    }
   }
 
   Future<void> _issueCertificate(Course course) async {
@@ -3484,13 +3479,11 @@ class _AcademyHomeState extends State<AcademyHome> {
         Text(label, style: const TextStyle(fontSize: 11, color: Colors.blueGrey)),
       ])]));
 
-  void _downloadCsv(String filename, String csv) {
-    final anchor = web.document.createElement('a') as web.HTMLAnchorElement;
-    anchor.href = 'data:text/csv;charset=utf-8,${Uri.encodeComponent('\uFEFF$csv')}';
-    anchor.download = filename;
-    web.document.body?.append(anchor);
-    anchor.click();
-    anchor.remove();
+  Future<void> _downloadCsv(String filename, String csv) async {
+    final downloaded = await platformActions.downloadCsv(filename, csv);
+    if (!downloaded && mounted) {
+      _message('تم نسخ التقرير إلى الحافظة؛ الصقه في ملف CSV لحفظه.');
+    }
   }
 
   void _message(String message) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
