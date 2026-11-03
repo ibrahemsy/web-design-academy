@@ -1,17 +1,12 @@
 #!/usr/bin/env node
 /**
- * Creates isolated test users for Web Design Academy.
- *
- * Required environment:
- *   SUPABASE_URL=https://<project-ref>.supabase.co
- *   SUPABASE_SERVICE_ROLE_KEY=<server-side secret; never commit/share>
- *   ALLOW_TEST_ACCOUNTS_ON_PROJECT=<same project ref as SUPABASE_URL>
- *
- * This uses only Node.js built-ins. New accounts are email-confirmed because
- * example.com is a reserved testing domain and cannot receive mail.
+ * Create isolated test users in Supabase Auth.
+ * The service-role secret stays in this local process and is never written.
+ * Role changes are emitted as SQL for the project owner to run in SQL Editor:
+ * the profile role guard intentionally rejects service_role REST updates.
  */
 import { randomBytes } from 'node:crypto';
-import { access, chmod, writeFile } from 'node:fs/promises';
+import { access, chmod, unlink, writeFile } from 'node:fs/promises';
 
 const EXPECTED_PROJECT_REF = 'dgeohwxzleznygmfjfdq';
 const url = process.env.SUPABASE_URL?.replace(/\/$/, '');
@@ -25,7 +20,18 @@ const parsed = new URL(url);
 const projectRef = parsed.hostname.split('.')[0];
 if (parsed.protocol !== 'https:' || projectRef !== EXPECTED_PROJECT_REF ||
     allowRef !== EXPECTED_PROJECT_REF) {
-  throw new Error('Safety stop: this script is restricted to the explicitly approved test project. Check URL and ALLOW_TEST_ACCOUNTS_ON_PROJECT.');
+  throw new Error('Safety stop: restricted to the approved test project. Check URL and ALLOW_TEST_ACCOUNTS_ON_PROJECT.');
+}
+
+const credentialsPath = new URL('../test-accounts.generated.json', import.meta.url);
+const rolesPath = new URL('../test-accounts-roles.generated.sql', import.meta.url);
+for (const path of [credentialsPath, rolesPath]) {
+  try {
+    await access(path);
+    throw new Error(`${path.pathname} already exists. Move it securely before rerunning; outputs are never overwritten.`);
+  } catch (error) {
+    if (error?.code !== 'ENOENT') throw error;
+  }
 }
 
 const headers = {
@@ -43,13 +49,15 @@ async function request(path, options = {}) {
   let data;
   try { data = body ? JSON.parse(body) : null; } catch { data = body; }
   if (!response.ok) {
-    const message = typeof data === 'object' ? (data.msg || data.message || data.error_description || data.error) : data;
+    const message = typeof data === 'object'
+      ? (data.msg || data.message || data.error_description || data.error)
+      : data;
     throw new Error(`Supabase request failed (${response.status}): ${message || 'unknown error'}`);
   }
   return data;
 }
 
-const output = new URL('../test-accounts.generated.json', import.meta.url);\ntry {\n  await access(output);\n  throw new Error('test-accounts.generated.json already exists. Move it securely before rerunning; the script will not overwrite credentials.');\n} catch (error) {\n  if (error?.code !== 'ENOENT') throw error;\n}\n\nconst definitions = [
+const definitions = [
   { email: 'academy.admin@example.com', displayName: 'Demo Academy Administrator', role: 'admin' },
   { email: 'academy.teacher@example.com', displayName: 'Demo Academy Teacher', role: 'teacher' },
   { email: 'academy.student@example.com', displayName: 'Demo Academy Student', role: 'student' },
@@ -59,6 +67,7 @@ const listed = await request('/auth/v1/admin/users?page=1&per_page=1000');
 const existingUsers = listed?.users ?? [];
 const credentials = [];
 const createdIds = [];
+let credentialsWritten = false;
 
 try {
   for (const account of definitions) {
@@ -79,47 +88,57 @@ try {
       }),
     });
     const userId = created?.id ?? created?.user?.id;
-    if (!userId) throw new Error(`Supabase did not return a user ID for ${account.email}`);
-    createdIds.push(userId);
-
-    const profile = await request(
-      `/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}`,
-      {
-        method: 'PATCH',
-        headers: { Prefer: 'return=representation' },
-        body: JSON.stringify({ display_name: account.displayName, role: account.role }),
-      },
-    );
-    if (!Array.isArray(profile) || profile.length !== 1) {
-      throw new Error(`Profile role update did not affect exactly one row for ${account.email}`);
+    if (!userId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(userId)) {
+      throw new Error(`Supabase returned an invalid user ID for ${account.email}`);
     }
-
+    createdIds.push(userId);
     credentials.push({
       email: account.email,
       password,
       role: account.role,
       user_id: userId,
     });
-    console.log(`CREATED ${account.email} (${account.role})`);
+    console.log(`CREATED ${account.email}; pending role assignment: ${account.role}`);
+  }
+
+  if (credentials.length) {
+    const payload = {
+      warning: 'LOCAL TEST CREDENTIALS. Never commit, upload, or share this file.',
+      project_ref: projectRef,
+      accounts: credentials,
+    };
+    await writeFile(credentialsPath, `${JSON.stringify(payload, null, 2)}\n`, { mode: 0o600, flag: 'wx' });
+    credentialsWritten = true;
+    await chmod(credentialsPath, 0o600);
+
+    const roleUpdates = credentials
+      .filter(account => account.role !== 'student')
+      .map(account => `update public.profiles set role = '${account.role}' where id = '${account.user_id}';`);
+    const sql = [
+      '-- Review the UUIDs and run this in Supabase SQL Editor for the test project only.',
+      '-- The trigger permits owner-run SQL Editor role bootstrap; REST service_role updates are intentionally blocked.',
+      ...roleUpdates,
+      '',
+    ].join('\n');
+    await writeFile(rolesPath, sql, { mode: 0o600, flag: 'wx' });
+    await chmod(rolesPath, 0o600);
+    console.log(`Credentials saved locally: ${credentialsPath.pathname}`);
+    console.log(`Owner-only role SQL saved locally: ${rolesPath.pathname}`);
+    console.log('Next: review and run test-accounts-roles.generated.sql in the Supabase SQL Editor.');
+  } else {
+    console.log('No new accounts were created. Existing passwords are intentionally not recoverable.');
   }
 } catch (error) {
-  // Roll back only users created by this run; never touch pre-existing accounts.
+  if (credentialsWritten) {
+    try { await unlink(credentialsPath); } catch {}
+  }
+  try { await unlink(rolesPath); } catch {}
   for (const id of createdIds.reverse()) {
-    try { await request(`/auth/v1/admin/users/${encodeURIComponent(id)}`, { method: 'DELETE' }); }
-    catch { console.error(`WARNING: automatic cleanup failed for newly created user ID ${id}; remove it in Supabase Auth > Users.`); }
+    try {
+      await request(`/auth/v1/admin/users/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    } catch {
+      console.error(`WARNING: cleanup failed for newly created user ID ${id}; remove it in Supabase Auth > Users.`);
+    }
   }
   throw error;
-}
-
-if (credentials.length) {
-  const output = new URL('../test-accounts.generated.json', import.meta.url);
-  await writeFile(output, `${JSON.stringify({
-    warning: 'LOCAL TEST CREDENTIALS. Never commit, upload, or share this file.',
-    project_ref: projectRef,
-    accounts: credentials,
-  }, null, 2)}\n`, { mode: 0o600, flag: 'wx' });
-  await chmod(output, 0o600);
-  console.log(`Saved credentials for newly created users to ${output.pathname}`);
-} else {
-  console.log('No new accounts were created. Existing account passwords are intentionally not recoverable.');
 }
