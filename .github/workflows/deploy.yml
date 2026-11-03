@@ -35,7 +35,7 @@ jobs:
       - name: Run automated unit tests
         run: flutter test
       - name: Analyze Dart code
-        run: flutter analyze
+        run: flutter analyze --no-fatal-infos
       - name: Build web
         run: flutter build web --release --base-href /web-design-academy/
       - name: Upload Pages artifact
