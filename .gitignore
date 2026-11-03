@@ -17,5 +17,6 @@ coverage/
 .DS_Store
 Thumbs.db
 
-# Locally generated test credentials (never commit)
+# Locally generated test credentials and role SQL (never commit)
 test-accounts.generated.json
+test-accounts-roles.generated.sql
