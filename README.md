@@ -1,8 +1,8 @@
-# أكاديمية تصميم الويب | Web Design Academy
+# الأكاديمية البرمجية i.z | I.Z Programming Academy
 
-منصة تعليمية عربية مبنية باستخدام Flutter Web وSupabase، مع واجهة RTL ودعم الإنجليزية.
+منصة تعليمية عربية مبنية باستخدام Flutter متعددة المنصات وSupabase، مع واجهة RTL ودعم الإنجليزية. تُبنى من قاعدة شيفرة واحدة لنسخة الويب وتطبيقات Android وiOS.
 
-## رابط النسخة المنشورة
+## رابط نسخة الويب المنشورة
 https://ibrahemsy.github.io/web-design-academy/
 
 ## الميزات الحالية
