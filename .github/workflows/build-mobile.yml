@@ -1,0 +1,68 @@
+name: Build Android and iOS apps
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android:
+    name: Build Android APK
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Generate Android platform project
+        run: flutter create --platforms=android --org com.izacademy --project-name iz_programming_academy .
+      - name: Set Android application name
+        run: sed -i 's/android:label="[^"]*"/android:label="الأكاديمية البرمجية i.z"/' android/app/src/main/AndroidManifest.xml
+      - name: Install dependencies
+        run: flutter pub get
+      - name: Run tests and analyzer
+        run: |
+          flutter test
+          flutter analyze
+      - name: Build release APK
+        run: flutter build apk --release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: iz-programming-academy-android-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
+          retention-days: 30
+
+  ios:
+    name: Build iOS app (unsigned)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Generate iOS platform project
+        run: flutter create --platforms=ios --org com.izacademy --project-name iz_programming_academy .
+      - name: Set iOS display name
+        run: /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName الأكاديمية البرمجية i.z" ios/Runner/Info.plist
+      - name: Install dependencies
+        run: flutter pub get
+      - name: Build iOS without signing
+        run: flutter build ios --release --no-codesign
+      - name: Package unsigned iOS app
+        run: cd build/ios/iphoneos && zip -r ../../../iz-programming-academy-ios-unsigned.zip Runner.app
+      - uses: actions/upload-artifact@v4
+        with:
+          name: iz-programming-academy-ios-unsigned
+          path: iz-programming-academy-ios-unsigned.zip
+          if-no-files-found: error
+          retention-days: 30
