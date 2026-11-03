@@ -16,3 +16,6 @@ coverage/
 # OS
 .DS_Store
 Thumbs.db
+
+# Locally generated test credentials (never commit)
+test-accounts.generated.json
