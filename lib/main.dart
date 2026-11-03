@@ -2786,7 +2786,7 @@ class _AcademyHomeState extends State<AcademyHome> {
     return (raw as List).map((row) => Map<String, dynamic>.from(row as Map)).toList();
   }
 
-  Future<void> _printCertificate(Map<String, dynamic> certificate) {
+  Future<void> _printCertificate(Map<String, dynamic> certificate) async {
     final student = htmlEscapeText(certificate['student_name']);
     final course = htmlEscapeText(certificate['course_title']);
     final code = htmlEscapeText(certificate['certificate_code']);
