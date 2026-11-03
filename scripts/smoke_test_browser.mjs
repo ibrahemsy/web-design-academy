@@ -10,7 +10,7 @@ try {
   const failedRequests = [];
   const failedResponses = [];
   const consoleErrors = [];
-  page.on('pageerror', error => pageErrors.push(error.message));
+  page.on('pageerror', error => pageErrors.push(error.stack ?? error.message));
   page.on('console', message => {
     if (message.type() === 'error') consoleErrors.push(message.text());
   });
@@ -61,6 +61,9 @@ async function diagnostics(page) {
     return {
       title: document.title,
       readyState: document.readyState,
+      browserLocale: navigator.language,
+      browserLanguages: navigator.languages,
+      resolvedIntlLocale: Intl.DateTimeFormat().resolvedOptions().locale,
       body: document.body?.innerHTML.slice(0, 2500) ?? '',
       scripts: [...document.scripts].map(script => script.src),
       flutterHost: Boolean(host),
