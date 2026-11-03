@@ -10,6 +10,33 @@
   <title>الأكاديمية البرمجية i.z</title>
 </head>
 <body>
+  <script>
+    (() => {
+      const normalizeLocale = (value) =>
+        String(value || 'en').split('@')[0].split('.')[0].replace(/_/g, '-');
+      try {
+        const language = navigator.language;
+        const normalizedLanguage = normalizeLocale(language);
+        if (normalizedLanguage !== language) {
+          Object.defineProperty(navigator, 'language', {
+            configurable: true,
+            get: () => normalizedLanguage,
+          });
+        }
+        const languages = Array.from(navigator.languages || []);
+        const normalizedLanguages = languages.map(normalizeLocale).filter(Boolean);
+        if (normalizedLanguages.length &&
+            normalizedLanguages.some((value, index) => value !== languages[index])) {
+          Object.defineProperty(navigator, 'languages', {
+            configurable: true,
+            get: () => normalizedLanguages,
+          });
+        }
+      } catch (_) {
+        // Keep the browser defaults if the environment prevents locale normalization.
+      }
+    })();
+  </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>
