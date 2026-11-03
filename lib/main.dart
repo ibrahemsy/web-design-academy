@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'platform/platform_actions_stub.dart'
-    if (dart.library.js_interop) 'platform/platform_actions_web.dart' as platformActions;
+    if (dart.library.js_interop) 'platform/platform_actions_web.dart' as platform_actions;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -2847,7 +2847,7 @@ class _AcademyHomeState extends State<AcademyHome> {
 </body>
 </html>
 ''';
-    final printed = await platformActions.printHtmlDocument(html);
+    final printed = await platform_actions.printHtmlDocument(html);
     if (!printed && mounted) {
       _message('تم نسخ محتوى الشهادة. يمكنك حفظها أو طباعتها من تطبيق المستندات.');
     }
@@ -3480,7 +3480,7 @@ class _AcademyHomeState extends State<AcademyHome> {
       ])]));
 
   Future<void> _downloadCsv(String filename, String csv) async {
-    final downloaded = await platformActions.downloadCsv(filename, csv);
+    final downloaded = await platform_actions.downloadCsv(filename, csv);
     if (!downloaded && mounted) {
       _message('تم نسخ التقرير إلى الحافظة؛ الصقه في ملف CSV لحفظه.');
     }
