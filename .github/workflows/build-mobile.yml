@@ -24,6 +24,8 @@ jobs:
           cache: true
       - name: Generate Android platform project
         run: flutter create --platforms=android --org com.izacademy --project-name iz_programming_academy .
+      - name: Remove generated starter widget test
+        run: rm -f test/widget_test.dart
       - name: Set Android application name
         run: sed -i 's/android:label="[^"]*"/android:label="الأكاديمية البرمجية i.z"/' android/app/src/main/AndroidManifest.xml
       - name: Install dependencies
