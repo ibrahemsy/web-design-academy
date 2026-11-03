@@ -40,7 +40,15 @@ jobs:
             echo "Android app Gradle file was not generated" >&2
             exit 1
           fi
-          sdkmanager "platforms;android-36"
+          SDKMANAGER="${ANDROID_HOME:-$ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SDKMANAGER" ]; then
+            SDKMANAGER="$(find "${ANDROID_HOME:-$ANDROID_SDK_ROOT}" -type f -name sdkmanager -print -quit)"
+          fi
+          if [ ! -x "$SDKMANAGER" ]; then
+            echo "Android sdkmanager was not found" >&2
+            exit 1
+          fi
+          yes | "$SDKMANAGER" "platforms;android-36"
       - name: Run tests and analyzer
         run: |
           flutter test
