@@ -5,7 +5,7 @@ if (!url) throw new Error('DEPLOYED_URL is required');
 
 const browser = await chromium.launch({ headless: true });
 try {
-  const page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, locale: 'ar' });
+  const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
   const pageErrors = [];
   const failedRequests = [];
   const failedResponses = [];
