@@ -56,6 +56,13 @@ try {
 
 async function diagnostics(page) {
   return page.evaluate(() => {
+    let resolvedIntlLocale = null;
+    let intlLocaleError = null;
+    try {
+      resolvedIntlLocale = Intl.DateTimeFormat().resolvedOptions().locale;
+    } catch (error) {
+      intlLocaleError = error.message;
+    }
     const host = document.querySelector('flutter-view, flt-glass-pane');
     const rect = host?.getBoundingClientRect();
     return {
@@ -63,7 +70,8 @@ async function diagnostics(page) {
       readyState: document.readyState,
       browserLocale: navigator.language,
       browserLanguages: navigator.languages,
-      resolvedIntlLocale: Intl.DateTimeFormat().resolvedOptions().locale,
+      resolvedIntlLocale,
+      intlLocaleError,
       body: document.body?.innerHTML.slice(0, 2500) ?? '',
       scripts: [...document.scripts].map(script => script.src),
       flutterHost: Boolean(host),
