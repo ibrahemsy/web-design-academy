@@ -11,7 +11,7 @@
  * example.com is a reserved testing domain and cannot receive mail.
  */
 import { randomBytes } from 'node:crypto';
-import { chmod, writeFile } from 'node:fs/promises';
+import { access, chmod, writeFile } from 'node:fs/promises';
 
 const EXPECTED_PROJECT_REF = 'dgeohwxzleznygmfjfdq';
 const url = process.env.SUPABASE_URL?.replace(/\/$/, '');
@@ -49,7 +49,7 @@ async function request(path, options = {}) {
   return data;
 }
 
-const definitions = [
+const output = new URL('../test-accounts.generated.json', import.meta.url);\ntry {\n  await access(output);\n  throw new Error('test-accounts.generated.json already exists. Move it securely before rerunning; the script will not overwrite credentials.');\n} catch (error) {\n  if (error?.code !== 'ENOENT') throw error;\n}\n\nconst definitions = [
   { email: 'academy.admin@example.com', displayName: 'Demo Academy Administrator', role: 'admin' },
   { email: 'academy.teacher@example.com', displayName: 'Demo Academy Teacher', role: 'teacher' },
   { email: 'academy.student@example.com', displayName: 'Demo Academy Student', role: 'student' },
