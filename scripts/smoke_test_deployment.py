@@ -22,7 +22,7 @@ if not BASE_URL.endswith("/"):
     BASE_URL += "/"
 
 def fetch(url: str) -> tuple[bytes, str]:
-    request = Request(url, headers={"User-Agent": "WebDesignAcademy-DeploymentSmokeTest/1.0"})
+    request = Request(url, headers={"User-Agent": "IZProgrammingAcademy-DeploymentSmokeTest/1.0"})
     with urlopen(request, timeout=20) as response:
         if response.status != 200:
             raise RuntimeError(f"{url} returned HTTP {response.status}")
@@ -43,7 +43,7 @@ for attempt in range(12):
         time.sleep(5)
 
 document = html.decode("utf-8", errors="replace")
-if "أكاديمية تصميم الويب" not in document:
+if "الأكاديمية البرمجية i.z" not in document:
     raise SystemExit("FAIL: deployed HTML does not contain the academy page title")
 if "flutter_bootstrap.js" not in document:
     raise SystemExit("FAIL: Flutter bootstrap script is missing from deployed HTML")
