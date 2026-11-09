@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Ibrahim Zainab. All rights reserved.
+// GitHub: https://github.com/ibrahemsy
+
 import 'dart:js_interop';
 
 import 'package:web/web.dart' as web;

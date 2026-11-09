@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Copyright (c) 2026 Ibrahim Zainab. All rights reserved.
+# GitHub: https://github.com/ibrahemsy
+
 """HTTP smoke test for the deployed Flutter web application.
 
 This checks the public GitHub Pages document and the core Flutter runtime

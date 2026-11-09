@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Ibrahim Zainab. All rights reserved.
+// GitHub: https://github.com/ibrahemsy
+
 /// Builds the stable Supabase payload for a learner's lesson progress.
 /// Negative positions are normalized to zero to satisfy the database constraint.
 Map<String, dynamic> buildLessonProgressPayload({

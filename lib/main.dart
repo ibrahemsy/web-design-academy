@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Ibrahim Zainab. All rights reserved.
+// GitHub: https://github.com/ibrahemsy
+
 import 'dart:async';
 import 'platform/platform_actions_stub.dart'
     if (dart.library.js_interop) 'platform/platform_actions_web.dart' as platform_actions;

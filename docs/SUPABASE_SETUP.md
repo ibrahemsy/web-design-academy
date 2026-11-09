@@ -1,3 +1,5 @@
+<!-- Copyright (c) 2026 Ibrahim Zainab. All rights reserved. | GitHub: https://github.com/ibrahemsy -->
+
 # إعداد Supabase لأكاديمية تصميم الويب
 
 هذا الدليل يشرح تجهيز قاعدة البيانات والتخزين وربط تطبيق Flutter. لا تضع مفتاح `service_role` أو أي Secret key داخل التطبيق أو GitHub.

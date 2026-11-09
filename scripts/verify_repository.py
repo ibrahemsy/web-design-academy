@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Copyright (c) 2026 Ibrahim Zainab. All rights reserved.
+# GitHub: https://github.com/ibrahemsy
+
 """Repository release invariants for Web Design Academy.
 
 This is a static guardrail; it does not replace applying migrations or running

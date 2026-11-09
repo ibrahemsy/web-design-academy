@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+// Copyright (c) 2026 Ibrahim Zainab. All rights reserved.
+// GitHub: https://github.com/ibrahemsy
+
 /**
  * Create isolated test users in Supabase Auth.
  * The service-role secret stays in this local process and is never written.

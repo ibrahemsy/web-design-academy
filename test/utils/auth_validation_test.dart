@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Ibrahim Zainab. All rights reserved.
+// GitHub: https://github.com/ibrahemsy
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:web_design_academy/utils/auth_validation.dart';
 

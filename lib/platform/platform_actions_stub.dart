@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Ibrahim Zainab. All rights reserved.
+// GitHub: https://github.com/ibrahemsy
+
 import 'package:flutter/services.dart';
 
 Future<bool> printHtmlDocument(String html) async {
