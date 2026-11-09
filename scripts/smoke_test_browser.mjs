@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Ibrahim Zainab. All rights reserved.
+// GitHub: https://github.com/ibrahemsy
+
 import { chromium } from 'playwright';
 
 const url = process.env.DEPLOYED_URL;
