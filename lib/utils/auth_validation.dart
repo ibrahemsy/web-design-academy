@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Ibrahim Zainab. All rights reserved.
+// GitHub: https://github.com/ibrahemsy
+
 /// Validates a new password and its confirmation before calling Supabase Auth.
 bool isValidPasswordPair(String password, String confirmation) =>
     password.length >= 6 && password == confirmation;
