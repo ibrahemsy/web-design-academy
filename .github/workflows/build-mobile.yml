@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Ibrahim Zainab. All rights reserved.
+# GitHub: https://github.com/ibrahemsy
+
 name: Build Android and iOS apps
 
 on:

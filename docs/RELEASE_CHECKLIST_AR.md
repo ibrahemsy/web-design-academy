@@ -1,3 +1,5 @@
+<!-- Copyright (c) 2026 Ibrahim Zainab. All rights reserved. | GitHub: https://github.com/ibrahemsy -->
+
 # قائمة فحص الإطلاق — أكاديمية تصميم الويب
 
 هذه القائمة مخصصة للتحقق قبل استقبال الطلاب. لا تعتبر عملية البناء الناجحة بديلاً عن اختبار الصلاحيات والبيانات على Supabase فعلياً.

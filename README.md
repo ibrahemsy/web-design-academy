@@ -1,3 +1,5 @@
+<!-- Copyright (c) 2026 Ibrahim Zainab. All rights reserved. | GitHub: https://github.com/ibrahemsy -->
+
 # الأكاديمية البرمجية i.z | I.Z Programming Academy
 
 منصة تعليمية عربية مبنية باستخدام Flutter متعددة المنصات وSupabase، مع واجهة RTL ودعم الإنجليزية. تُبنى من قاعدة شيفرة واحدة لنسخة الويب وتطبيقات Android وiOS.

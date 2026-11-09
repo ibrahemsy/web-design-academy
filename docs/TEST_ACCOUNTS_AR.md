@@ -1,3 +1,5 @@
+<!-- Copyright (c) 2026 Ibrahim Zainab. All rights reserved. | GitHub: https://github.com/ibrahemsy -->
+
 # إنشاء حسابات الاختبار
 
 ينشئ هذا الإجراء مستخدمين حقيقيين في Supabase Auth لأغراض الاختبار. البريد على نطاق `example.com` المحجوز للأمثلة، ويؤكد السكربت البريد داخل Auth لأن النطاق غير مخصص لاستقبال البريد.
